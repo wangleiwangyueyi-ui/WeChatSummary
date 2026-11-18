@@ -1,0 +1,23 @@
+# All user state, reports, credentials and local build products stay off GitHub.
+__pycache__/
+*.pyc
+*.dpapi
+*.sqlite*
+config.json
+*_status.json
+scheduler_state.json
+scheduled_receipts/
+updates/
+exports/
+runtime/
+models/
+build*/
+dist/
+*.exe
+*.log
+installed-mode.json
+runtime-version.txt
+media-version.txt
+release_tools/InnoSetup/
+release_tools/extra/
+.env*

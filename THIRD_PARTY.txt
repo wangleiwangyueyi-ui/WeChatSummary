@@ -1,0 +1,26 @@
+The temporary bootstrap key extractor is adapted from WeChatMsg-4x under GPL-3.0.
+https://github.com/chenanhan230-del/WeChatMsg-4x
+Full source and license are supplied. bootstrap/NOTICE.txt lists modifications.
+This project is supplied as source under GPL-3.0; see LICENSE.
+Dependencies retain their respective licenses in runtime/Lib/site-packages.
+Database format research used wx4/common.py, reader.py and media.py of that project.
+The daily application does not import its memory access code.
+
+2026-11-17 新增：
+- SenseVoice / sherpa-onnx 离线模型与运行库（Apache-2.0）：https://github.com/k2-fsa/sherpa-onnx
+- pilk-nogil 0.3.0（GPL-3.0）：https://pypi.org/project/pilk-nogil/0.3.0/
+- pystray（LGPL-3.0）：https://github.com/moses-palmer/pystray
+- PyAV（BSD-3-Clause；包含 FFmpeg 组件，详见安装包许可证）：https://github.com/PyAV-Org/PyAV
+- 微信 V2 图片布局和候选校验参考（Apache-2.0）：https://github.com/fanyuantaier/wechatauto-replica/blob/main/wechatauto/media.py
+
+Windows distribution:
+- Python: PSF license; LICENSE_PYTHON.txt is included with the runtime.
+- Tcl/Tk and support libraries retain their upstream notices.
+- SenseVoice-Small-Yue model: ASLP-lab/WSYue-ASR (Apache-2.0),
+  https://huggingface.co/ASLP-lab/WSYue-ASR ; converted ONNX distribution:
+  https://github.com/k2-fsa/sherpa-onnx/releases/tag/asr-models .
+  The model package includes Apache-2.0 text and the upstream README.
+- DEPENDENCIES.json records package versions; Python distribution metadata,
+  notices and licenses are retained under runtime/Lib/site-packages.
+- Inno Setup installer compiler: https://jrsoftware.org/inno-setup .
+

@@ -1,0 +1,13 @@
+pycryptodome
+lz4
+rapidocr_onnxruntime
+google-genai
+requests
+zstandard
+pillow
+pilk-nogil==0.3.0
+sherpa-onnx==2.0.1
+pystray==0.19.5
+av==19.0.2
+tzdata
+customtkinter==6.0.0

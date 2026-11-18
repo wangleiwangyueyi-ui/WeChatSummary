@@ -1,0 +1,7 @@
+key.py and common.py are adapted from WeChatMsg-4x, GPL-3.0.
+Source: https://github.com/chenanhan230-del/WeChatMsg-4x/tree/main/wx4
+Retrieved 2026-11-16. License is included in this directory.
+Local modifications: explicit 64-bit ctypes signatures; disabled automatic debug privilege;
+removed command line entry point that printed partial keys. Called only by the offline
+initialization wizard, after physical adapter checks and an explicit local button click.
+This temporary component is not imported by the daily application.
