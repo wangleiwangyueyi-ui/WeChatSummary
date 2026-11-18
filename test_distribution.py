@@ -89,7 +89,7 @@ class ReleaseTests(unittest.TestCase):
                     return module
                 self.assertEqual(load().DATA_DIR,Path(tmp)/'data'/'WeChatSummary')
                 (root/'config.json').write_text('{"test":true}')
-                self.assertEqual(load().DATA_DIR,root)
+                self.assertEqual(load().DATA_DIR,root.resolve())
 
 
 if __name__=='__main__':unittest.main()
