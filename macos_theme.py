@@ -14,6 +14,7 @@ MACOS_THEME = {
     'fonts':('PingFang SC','Microsoft YaHei UI','SF Pro Text'),
     # CustomTkinter sizes are logical pixels: 20/15/13/12 correspond to about 15/11/10/9 pt.
     'title_size':20,'section_size':15,'body_size':13,'small_size':12,'tiny_size':11,
+    'search_size':15,
     'card_radius':15,'button_radius':9,'pill_radius':12,'border_width':1,
     'control_height':30,'top_height':60,'nav_height':48,'footer_height':32,
     'dialog_body_size':14,'dialog_label_size':13,'dialog_title_size':20,
@@ -66,6 +67,16 @@ def entry(parent,var,width=140,**kwargs):
     widget.bind('<FocusOut>',lambda _:widget.configure(border_color=opts['border_color'],
         fg_color=opts['fg_color']),add='+')
     return widget
+
+
+def search_entry(parent, var, **kwargs):
+    from ime_font import set_chinese_composition_font
+
+    face = font('search_size')
+    field = entry(parent, var, font=face, **kwargs)
+    set_chinese_composition_font(field._entry, face.cget('family'),
+                                 lambda: face.cget('size') * field._get_widget_scaling())
+    return field
 
 def native_styles(root,scale=1):
     """Match the high-volume native list and combobox to the CTk shell."""

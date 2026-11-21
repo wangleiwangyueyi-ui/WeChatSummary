@@ -5,9 +5,10 @@ import tkinter as tk
 from tkinter import ttk
 import webbrowser
 import customtkinter as ctk
-from macos_theme import MACOS_THEME, family, font, frame, label, button, entry, native_styles, PercentProgress, Tooltip, fitted_label
+from macos_theme import MACOS_THEME, family, font, frame, label, button, entry, search_entry, native_styles, PercentProgress, Tooltip, fitted_label
 from motion_ui import (PhaseDots, QuotaMeter, TabUnderline, bind_clear_undo,
                        copy_log, motion_enabled, show_commands, toggle_focus)
+from task_manager_ui import show_tasks
 
 PAGES=['日常汇总','历史与人物查询','基础配置与初始化']
 
@@ -104,10 +105,11 @@ def build_shell(app):
     utilities=frame(nav)
     utilities.grid(row=0,column=1,sticky='e',padx=(8,0))
     action(app,utilities,'quota','额度管理',lambda:show_quota_settings(app),width=76,height=32).pack(side='left',padx=(0,6))
-    app.toggle=action(app,utilities,'toggle','暂停自动运行',app.pause,width=108,height=32)
+    app.toggle=action(app,utilities,'toggle','暂停定时计划',app.pause,width=108,height=32)
     app.toggle.pack(side='left',padx=(0,6))
-    app.utility_commands={'cancel':app.cancel_task,'hide':app.hide,'exit':app.exit}
-    for name,text,width in [('cancel','取消任务',76),('hide','隐藏',52),('exit','退出',52)]:
+    app.utility_commands={'hide':app.hide,'exit':app.exit}
+    action(app,utilities,'tasks','任务管理',lambda:show_tasks(app),width=76,height=32).pack(side='left',padx=(0,6))
+    for name,text,width in [('hide','隐藏',52),('exit','退出',52)]:
         action(app,utilities,name,text,app.utility_commands[name],width=width,height=32).pack(side='left',padx=(0,6))
     commands=action(app,utilities,'commands','快捷指令',lambda:show_commands(app),width=76,height=32)
     commands.pack(side='left')
@@ -174,8 +176,12 @@ def build_daily(app):
     row.grid(row=0,column=0,sticky='ew',padx=12,pady=(10,6))
     label(row,'每日运行时间').pack(side='left',padx=(0,8))
     app.schedule=tk.StringVar(value=app.cfg['schedule_times'])
-    app.schedule_entry=entry(row,app.schedule,width=140)
-    app.schedule_entry.pack(side='left')
+    from macos_dialogs import schedule_dialog, schedule_caption
+    schedule_button=action(app,row,'schedule_times',schedule_caption(app.schedule.get()),
+        lambda:schedule_dialog(app.root,app.schedule),width=140)
+    schedule_button.pack(side='left')
+    app.schedule.trace_add('write',lambda *_:schedule_button.configure(text=schedule_caption(app.schedule.get())))
+    Tooltip(schedule_button,'选择小时和分钟，可添加多个每日时间点。')
     app.ocr=tk.BooleanVar(value=app.cfg.get('enable_image_ocr',True))
     app.asr=tk.BooleanVar(value=app.cfg.get('enable_voice_asr',True))
     for variable,title,name in [(app.ocr,'本地图片 OCR','ocr'),(app.asr,'本地语音转写','asr')]:
@@ -190,7 +196,8 @@ def build_daily(app):
     row.grid_columnconfigure(1,weight=1)
     label(row,'搜索群聊').grid(row=0,column=0,padx=(0,10))
     app.search=tk.StringVar()
-    app.search.trace_add('write',lambda *_:app.draw_groups())
+    app.group_search_task=None
+    app.search.trace_add('write',lambda *_:queue_group_search(app))
     app.search_entry=search_box(app,row,app.search,'search_daily',app.draw_groups)
     app.search_entry.master.grid(row=0,column=1,sticky='ew')
     clear=action(app,row,'clear_daily','清空',lambda:None,width=48)
@@ -218,6 +225,8 @@ def build_daily(app):
         fg_color=t['bg_card'],button_color=t['border_input'],button_hover_color=t['hint'],width=12)
     scrollbar.grid(row=0,column=1,sticky='ns')
     app.group_frame=ttk.Frame(canvas,style='Card.TFrame')
+    app.group_rows={}
+    app.group_placeholder=None
     app.group_frame.bind('<Configure>',lambda _:canvas.configure(scrollregion=canvas.bbox('all')))
     window=canvas.create_window((0,0),window=app.group_frame,anchor='nw')
     canvas.bind('<Configure>',lambda event:canvas.itemconfigure(window,width=event.width))
@@ -384,10 +393,15 @@ def build_config(app):
         ('optional_components','图片/语音组件',app.optional_components,102)]:
         action(app,row,name,text,command,width=width,height=28,font=font('small_size')).pack(side='left',padx=(0,6))
 
+def queue_group_search(app):
+    if app.group_search_task is not None:
+        app.root.after_cancel(app.group_search_task)
+    app.group_search_task=app.root.after(140,app.draw_groups)
+
+
 def group_row(app,text,var):
     row=ttk.Checkbutton(app.group_frame,text=text,variable=var,style='Group.TCheckbutton',
         command=lambda:refresh_selection(app))
-    row.pack(fill='x',padx=4,pady=4)
     return row
 
 
@@ -396,13 +410,15 @@ def refresh_selection(app):
     app.selection_count.configure(text=f'已勾选 {count} 个群')
 
 def empty_groups(app,text):
-    ttk.Label(app.group_frame,text=text,padding=12,style='Card.TLabel').pack(anchor='w')
+    placeholder=ttk.Label(app.group_frame,text=text,padding=12,style='Card.TLabel')
+    placeholder.pack(anchor='w')
+    return placeholder
 
 
 def search_box(app,parent,variable,name,callback):
     box=frame(parent,fg_color=MACOS_THEME['bg_input'],corner_radius=8,border_width=1,border_color=MACOS_THEME['border_input'])
     box.grid_columnconfigure(0,weight=1)
-    field=entry(box,variable,width=100,border_width=0)
+    field=search_entry(box,variable,width=100,border_width=0)
     field.grid(row=0,column=0,sticky='ew',padx=(2,0),pady=1)
     action(app,box,name,'🔍',callback,width=30,height=28,border_width=0,text_color=MACOS_THEME['primary']).grid(row=0,column=1,padx=(0,3))
     field.bind('<Return>',lambda _:callback())

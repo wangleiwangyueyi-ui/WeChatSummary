@@ -205,7 +205,7 @@ def show_commands(app, _=None):
     card.grid(row=2, column=0, sticky='nsew', padx=16)
     commands = [(name, lambda page=name: app.tabs.select(page)) for name in app.tabs.pages]
     commands.extend((caption, app.ui_controls[key].invoke) for caption, key in (
-        ('刷新群列表', 'refresh_groups'), ('打开导出目录', 'open_exports'),
+        ('任务管理', 'tasks'), ('刷新群列表', 'refresh_groups'), ('打开导出目录', 'open_exports'),
         ('检查更新', 'check_updates'), ('额度管理', 'quota'),
         ('图片 / 语音组件', 'optional_components'), ('使用说明', 'help'),
         ('切换专注模式', 'focus_mode')))

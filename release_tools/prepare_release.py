@@ -20,8 +20,8 @@ if (ROOT/'release_tools'/'extra').is_dir():
 from version import VERSION, RUNTIME_VERSION
 
 PROGRAM = '''app_info.py app_paths.py credential_ui.py credentials.py db_reader.py group_search.py
-help_content.py help_ui.py jobs.py macos_dialogs.py macos_theme.py macos_ui.py message_parser.py
-model_catalog.py motion_ui.py quota_service.py report_format.py scheduler.py secure_store.py task_control.py
+help_content.py help_ui.py ime_font.py jobs.py macos_dialogs.py macos_theme.py macos_ui.py message_parser.py
+model_catalog.py motion_ui.py quota_service.py report_format.py scheduler.py secure_store.py task_control.py task_manager_ui.py
 ui_extras.py usage_tracker.py voice_reader.py wechat_gui.pyw update_service.py update_ui.py version.py
 initialize_offline.pyw initialize_images.pyw clear_wechat_logs.ps1'''.split()
 DOCUMENTS = ['LICENSE','THIRD_PARTY.txt','requirements.txt','README.md','软件使用说明.html','软件使用说明.txt','总结模板预览.html']

@@ -25,6 +25,7 @@ from credentials import accounts, bucket
 from credential_ui import show_credentials, show_image_key_help, GEMINI_KEYS_URL, PUSHPLUS_KEYS_URL
 from quota_service import sync_pushplus
 from task_control import check_cancel
+from task_manager_ui import TASK_NAMES, show_tasks
 from app_paths import APP_DIR
 import webbrowser
 
@@ -53,6 +54,8 @@ class App:
         self.progress_text = tk.StringVar(value='等待任务')
         self.task_kind = None
         self.task_started = None
+        self.last_task = None
+        self.discard_on_cancel = False
         self.progress_stage = '等待任务'
         self.next_usage_refresh = 0
         self.next_quota_sync = time.monotonic()+15
@@ -95,8 +98,14 @@ class App:
         show_updates(self, components=True)
 
     def refresh_banner(self):
-        self.toggle.configure(text='暂停自动运行' if self.cfg['enabled'] else '恢复自动运行')
-        self.banner.set(f'{"自动运行已启用" if self.cfg["enabled"] else "自动运行已暂停"}  ·  已保存 {len(self.cfg["selected_groups"])} 个群  ·  {self.cfg["schedule_times"]}')
+        enabled = self.cfg['enabled']
+        count = len(self.cfg['selected_groups'])
+        self.toggle.configure(text='暂停定时计划' if enabled else '恢复定时计划' if count else '启用定时计划')
+        if count:
+            state = '定时计划已启用' if enabled else '定时计划已暂停'
+            self.banner.set(f'{state}  ·  {count} 个群  ·  {self.cfg["schedule_times"]}')
+        else:
+            self.banner.set('未设置定时计划')
 
     def pause(self):
         enabling = not self.cfg['enabled']
@@ -104,12 +113,33 @@ class App:
             messagebox.showinfo('尚未配置完成','请先完成数据库初始化、填写 Gemini Key，并选择群聊保存。')
             return
         self.cfg['enabled'] = enabling
-        if not enabling:
-            self.cancel.set()
-        else:
+        if enabling:
             self.scheduler.activate(datetime.now())
         save_config(self.cfg)
         self.refresh_banner()
+
+    def revoke_daily_plan(self):
+        """Remove the saved recurring plan and cancel an active scheduled run."""
+        previous_groups = self.cfg['selected_groups']
+        cfg = dict(self.cfg, enabled=False, selected_groups={})
+        previous_state = self.scheduler.state
+        self.scheduler.clear_plan()
+        try:
+            save_config(cfg)
+        except OSError:
+            self.scheduler.replace_state(previous_state)
+            raise
+
+        self.cfg = cfg
+        if self.task_kind == 'scheduled' and self.busy:
+            self.cancel_task()
+        for group_id in previous_groups:
+            if group_id in self.selected:
+                self.selected[group_id].set(False)
+        macos_ui.refresh_selection(self)
+        self.refresh_banner()
+        self.status.set('定时计划已撤销，正在停止本轮定时汇总' if self.busy and self.task_kind == 'scheduled'
+                        else '定时计划已撤销')
 
     def save_daily(self):
         try:
@@ -192,6 +222,7 @@ class App:
         def event(name):
             return lambda icon,item:self.events.put((name,None))
         menu = pystray.Menu(pystray.MenuItem('打开设置',event('ui_show'),default=True),
+            pystray.MenuItem('任务管理',event('ui_tasks')),
             pystray.MenuItem(lambda item:'暂停自动运行' if self.cfg['enabled'] else '恢复自动运行',event('ui_pause')),
             pystray.MenuItem('退出软件',event('ui_exit')))
         self.tray = pystray.Icon('WeChatSummary',picture,APP_NAME,menu)
@@ -202,7 +233,7 @@ class App:
             self.status.set('已有任务运行，请等待或取消当前任务')
             return False
         self.busy = True
-        self.ui_controls['cancel'].configure(state='normal',text='取消任务')
+        self.discard_on_cancel = False
         self.progress_bar.set_state('running')
         self.task_kind = kind
         self.task_started = time.monotonic()
@@ -241,12 +272,14 @@ class App:
         threading.Thread(target=run,daemon=True).start()
         return True
 
-    def cancel_task(self):
+    def cancel_task(self, discard=True):
         if not self.busy:
             self.status.set('当前没有正在运行的任务')
             return
+        self.discard_on_cancel = self.discard_on_cancel or discard
+        if self.cancel.is_set():
+            return
         self.cancel.set()
-        self.ui_controls['cancel'].configure(text='正在取消',state='disabled')
         self.status.set('正在取消：停止后续处理、重试和推送；等待当前本地操作或网络请求返回')
         self.progress_text.set('正在取消 · 等待当前操作结束')
         self.progress_bar.set_state('running')
@@ -280,15 +313,36 @@ class App:
         return name + ('（群名：' + ' / '.join(other_names) + '）' if other_names else '')
 
     def draw_groups(self):
-        for widget in self.group_frame.winfo_children():
-            widget.destroy()
+        if self.group_search_task is not None:
+            self.root.after_cancel(self.group_search_task)
+            self.group_search_task = None
         matches = matching_groups(self.groups,self.group_aliases,self.search.get())
+        visible_ids = {rid for rid, _ in matches}
+        for rid in self.group_rows.keys() - visible_ids:
+            self.group_rows.pop(rid).destroy()
+        if matches and self.group_placeholder is not None:
+            self.group_placeholder.destroy()
+            self.group_placeholder = None
+        rows = []
+        for rid, name in matches:
+            text = f'{self.group_label(rid,name)}  ({rid})'
+            row = self.group_rows.get(rid)
+            if row is None:
+                row = self.group_rows[rid] = macos_ui.group_row(self,text,self.selected[rid])
+                row.pack(fill='x',padx=4,pady=4)
+            elif row.cget('text') != text:
+                row.configure(text=text)
+            rows.append(row)
+        if rows != self.group_frame.pack_slaves():
+            for index in range(len(rows)-2, -1, -1):
+                rows[index].pack_configure(before=rows[index+1])
         self.group_count.set(f'显示 {len(matches)} / {len(self.groups)} 个群；搜索不会取消已勾选的群')
-        for rid,name in matches:
-            macos_ui.group_row(self,f'{self.group_label(rid,name)}  ({rid})',self.selected[rid])
         if not matches:
             text = '没有匹配的群，请换个关键词或刷新群列表。' if self.groups else '尚未读取群聊，请点击“刷新群列表”。'
-            macos_ui.empty_groups(self,text)
+            if self.group_placeholder is None:
+                self.group_placeholder = macos_ui.empty_groups(self,text)
+            else:
+                self.group_placeholder.configure(text=text)
         # Recompute after Tk has laid out the shorter list, then reset the old scroll position.
         if self.group_layout_task is not None:
             self.root.after_cancel(self.group_layout_task)
@@ -437,7 +491,11 @@ class App:
                 ready.set()
                 continue
             if kind.startswith('ui_'):
-                {'ui_show':self.show,'ui_pause':self.pause,'ui_exit':self.exit}[kind]()
+                if kind == 'ui_tasks':
+                    self.show()
+                    show_tasks(self)
+                else:
+                    {'ui_show':self.show,'ui_pause':self.pause,'ui_exit':self.exit}[kind]()
                 if self.closing:
                     return
                 continue
@@ -465,7 +523,6 @@ class App:
                 self.log.see('end')
                 continue
             self.busy = False
-            self.ui_controls['cancel'].configure(text='取消任务',state='normal')
             self.progress_bar.stop()
             self.progress_bar.configure(mode='determinate')
             if kind == 'done':
@@ -518,8 +575,16 @@ class App:
                 self.progress_text.set(('已取消' if kind == 'cancel' else '未完成')+f' · 停止于约 {self.progress_value.get():.0f}%')
             refresh_usage(self)
             if self.active_schedule:
-                self.scheduler.failed(datetime.now())
+                if kind == 'cancel' and self.discard_on_cancel:
+                    try:
+                        if self.scheduler.cancel(self.active_schedule):
+                            msg += '。该次定时任务已撤销，不再重试。'
+                    except OSError as exc:
+                        msg += '。无法保存撤销状态：'+safe_error(exc,self.secrets)
+                else:
+                    self.scheduler.failed(datetime.now())
                 self.active_schedule = None
+            self.last_task = (TASK_NAMES.get(self.task_kind,'任务'), msg)
             self.cfg['last_run_status'] = f'{datetime.now():%m-%d %H:%M} {msg}'
             save_config(self.cfg)
             self.status.set(self.cfg['last_run_status'])
@@ -537,7 +602,7 @@ class App:
 
     def exit(self):
         if self.busy:
-            self.cancel_task()
+            self.cancel_task(discard=False)
             messagebox.showinfo('正在停止','已请求取消。请等待当前复制或 API 请求结束，再退出软件。')
             return
         if self.tray:

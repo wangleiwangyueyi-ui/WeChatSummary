@@ -57,6 +57,141 @@ def reveal(window):
     window.lift()
 
 
+def schedule_caption(value):
+    from jobs import times
+
+    try:
+        slots = times(value)
+    except ValueError:
+        return '设置时间 ▾'
+    if len(slots) > 2:
+        return f'{slots[0]} 等 {len(slots)} 个时间 ▾'
+    return '、'.join(slots) + ' ▾'
+
+
+def schedule_dialog(parent, schedule):
+    from jobs import times
+
+    window = dialog(parent, '每日运行时间', 510, 396, (460, 360))
+    window.grid_rowconfigure(2, weight=1)
+    label(window, '每日运行时间', size='dialog_title_size', bold=True).grid(
+        row=0, column=0, sticky='w', padx=18, pady=(14, 6))
+    label(window, '使用 24 小时制，可添加多个时间点。', muted=True).grid(
+        row=1, column=0, sticky='w', padx=18, pady=(0, 8))
+
+    card = frame(window, card=True)
+    card.grid(row=2, column=0, sticky='nsew', padx=16)
+    card.grid_columnconfigure(0, weight=1)
+    card.grid_rowconfigure(1, weight=1)
+    label(card, '已选时间点', size='section_size', bold=True).grid(
+        row=0, column=0, sticky='w', padx=12, pady=(9, 5))
+    scale = card._get_widget_scaling()
+    face = (family(window), -round(T['dialog_body_size'] * scale))
+    listing = tk.Listbox(card, font=face, activestyle='none', exportselection=False, height=4,
+        background=T['bg_input'], foreground=T['text'], selectbackground=T['selected_bg'],
+        selectforeground=T['selected_text'], borderwidth=0, highlightthickness=1,
+        highlightbackground=T['border_input'], highlightcolor=T['primary'])
+    listing.grid(row=1, column=0, sticky='nsew', padx=(12, 4))
+    scroll = ctk.CTkScrollbar(card, command=listing.yview, button_color=T['border_input'])
+    scroll.grid(row=1, column=1, sticky='ns', padx=(0, 8))
+    listing.configure(yscrollcommand=scroll.set)
+
+    controls = frame(card)
+    controls.grid(row=2, column=0, columnspan=2, sticky='ew', padx=12, pady=(8, 4))
+    style = 'Time.Mac.TCombobox'
+    ttk.Style(window).configure(style, arrowsize=round(13 * scale))
+    hour = ttk.Combobox(controls, state='readonly', style=style,
+        values=[f'{n:02d}' for n in range(24)], width=4, font=face, height=10)
+    minute = ttk.Combobox(controls, state='readonly', style=style,
+        values=[f'{n:02d}' for n in range(60)], width=4, font=face, height=10)
+    for text, field in [('小时', hour), ('分钟', minute)]:
+        label(controls, text).pack(side='left', padx=(0, 4))
+        field.pack(side='left', padx=(0, 10))
+    hour.current(0)
+    minute.current(0)
+
+    feedback = wrapped(card, '选中列表中的时间可修改或删除。', muted=True, size='small_size')
+    feedback.grid(row=3, column=0, columnspan=2, sticky='ew', padx=12, pady=(2, 9))
+    actions = frame(window)
+    actions.grid(row=3, column=0, sticky='ew', padx=16, pady=(8, 10))
+    actions.grid_columnconfigure(0, weight=1)
+    wrapped(actions, '应用后，点击「保存日常设置」生效。', muted=True, size='small_size').grid(
+        row=0, column=0, sticky='ew', padx=(0, 6))
+
+    def select(_=None):
+        selected = listing.curselection()
+        edit.configure(state='normal' if selected else 'disabled')
+        remove.configure(state='normal' if selected and listing.size() > 1 else 'disabled')
+        if selected:
+            h, m = listing.get(selected[0]).split(':')
+            hour.set(h)
+            minute.set(m)
+
+    def show_slots(values, index=0):
+        listing.delete(0, 'end')
+        listing.insert('end', *values)
+        if values:
+            listing.selection_set(index)
+            listing.activate(index)
+            listing.see(index)
+        apply.configure(state='normal' if values else 'disabled')
+        select()
+
+    def change(replace=False):
+        values = list(listing.get(0, 'end'))
+        chosen = f'{hour.get()}:{minute.get()}'
+        if replace:
+            values.pop(listing.curselection()[0])
+        if chosen in values:
+            feedback.configure(text=f'{chosen} 已在列表中。')
+            return
+        values.append(chosen)
+        values.sort()
+        show_slots(values, values.index(chosen))
+        feedback.configure(text=f'已{"更新为" if replace else "添加"} {chosen}。')
+
+    def delete():
+        index = listing.curselection()[0]
+        values = list(listing.get(0, 'end'))
+        removed = values.pop(index)
+        show_slots(values, min(index, len(values) - 1))
+        suffix = '至少保留一个时间点。' if len(values) == 1 else ''
+        feedback.configure(text=f'已删除 {removed}。{suffix}')
+
+    def close():
+        # CTk schedules titlebar and focus callbacks during window creation.
+        for task in window.tk.splitlist(window.tk.call('after', 'info')):
+            command = window.tk.call('after', 'info', task)[0]
+            if command in (window._tclCommands or ()):
+                window.after_cancel(task)
+        window.destroy()
+
+    def accept():
+        schedule.set(', '.join(listing.get(0, 'end')))
+        close()
+
+    button(controls, '添加', change, width=54).pack(side='left', padx=(0, 5))
+    edit = button(controls, '更新所选', lambda:change(replace=True), width=71)
+    edit.pack(side='left', padx=(0, 5))
+    remove = button(controls, '删除所选', delete, width=71)
+    remove.pack(side='left')
+    button(actions, '取消', close, width=65).grid(row=0, column=1, padx=(0, 6))
+    apply = button(actions, '应用', accept, width=65, primary=True)
+    apply.grid(row=0, column=2)
+    listing.bind('<<ListboxSelect>>', select)
+    window.protocol('WM_DELETE_WINDOW', close)
+    window.bind('<Escape>', lambda _:close())
+    try:
+        show_slots(times(schedule.get()))
+    except ValueError:
+        show_slots([])
+        feedback.configure(text='原时间格式无法识别，请添加有效时间。')
+    reveal(window)
+    window.grab_set()
+    hour.focus_set()
+    return window
+
+
 def wrapped(parent,text='',variable=None,**kwargs):
     """Wrap against current logical width, including mixed Chinese/Latin text."""
     opts=dict(justify='left',anchor='w',height=1,size='dialog_label_size',wraplength=600)

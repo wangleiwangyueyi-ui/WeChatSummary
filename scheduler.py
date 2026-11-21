@@ -10,6 +10,12 @@ def latest_due(now, schedule):
              for t in times(schedule)]
     return max(t if t <= now else t-timedelta(days=1) for t in slots)
 
+def next_due(now, schedule):
+    from jobs import times
+    slots = [now.replace(hour=int(t[:2]), minute=int(t[3:]), second=0, microsecond=0)
+             for t in times(schedule)]
+    return min(t if t > now else t+timedelta(days=1) for t in slots)
+
 class Scheduler:
     def __init__(self, path=None):
         self.path = path or BASE/'scheduler_state.json'
@@ -68,4 +74,23 @@ class Scheduler:
         if self.state.get('pending'):
             self.state['retry_after'] = now.timestamp()+300
             self.save()
+
+    def replace_state(self, state):
+        atomic_bytes(self.path, json.dumps(state, ensure_ascii=False, indent=2).encode('utf-8'))
+        self.state = state
+
+    def clear_plan(self):
+        """Clear pending work and start any future plan with fresh coverage."""
+        plan_keys = {'pending', 'retry_after', 'cursor', 'coverage_end'}
+        self.replace_state({key: value for key, value in self.state.items() if key not in plan_keys})
+
+    def cancel(self, job_id):
+        """Discard this occurrence while leaving the last successful coverage intact."""
+        job = self.state.get('pending')
+        if not job or job['id'] != job_id:
+            return False
+        state = {key: value for key, value in self.state.items() if key not in ('pending', 'retry_after')}
+        state['cursor'] = job['due']
+        self.replace_state(state)
+        return True
 
