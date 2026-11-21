@@ -28,7 +28,9 @@ class ReleaseTests(unittest.TestCase):
         return session
 
     def test_valid_release_and_dependency_selection(self):
-        release,manifest=self.release();value=updates.read_release(self.session(release,manifest))
+        release,manifest=self.release()
+        with patch.object(updates,'VERSION','1.1.0'):
+            value=updates.read_release(self.session(release,manifest))
         self.assertTrue(value['newer'])
         self.assertIn('update',updates.choose_asset(value)['name'])
         self.assertIn('setup',updates.choose_asset(value,installed=False)['name'])

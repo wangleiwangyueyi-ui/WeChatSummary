@@ -4,16 +4,18 @@ from tkinter import ttk, font as tkfont
 import customtkinter as ctk
 
 MACOS_THEME = {
-    'bg_window':'#F5F5F7','bg_card':'#FFFFFF','border_card':'#E5E5EA',
-    'bg_input':'#F2F2F7','border_input':'#D1D1D6','primary':'#007AFF',
-    'primary_hover':'#0062CC','secondary_hover':'#E5E5EA','text':'#1D1D1F',
-    'muted':'#6E6E73','hint':'#86868B','success_bg':'#E8F8EE','success':'#248A3D',
-    'footer':'#EFEFF4','log':'#F9F9FB','white':'#FFFFFF',
+    'bg_window':'#F0F4F8','bg_card':'#FFFFFF','border_card':'#DCE5EF',
+    'bg_input':'#F1F5FA','border_input':'#CCD9E6','primary':'#007AFF',
+    'primary_hover':'#0062CC','secondary_hover':'#E3EDF8','text':'#172A40',
+    'muted':'#52647C','hint':'#65758B','success_bg':'#E8F8EE','success':'#248A3D',
+    'footer':'#E7EEF6','log':'#F7FAFD','white':'#FFFFFF',
+    'nav_surface':'#E2EBF5','selected_bg':'#DDEEFF','selected_text':'#174A76',
+    'quota_track':'#D8E5F2','focus_surface':'#F6FAFF','disabled':'#77879A',
     'fonts':('PingFang SC','Microsoft YaHei UI','SF Pro Text'),
     # CustomTkinter sizes are logical pixels: 20/15/13/12 correspond to about 15/11/10/9 pt.
     'title_size':20,'section_size':15,'body_size':13,'small_size':12,'tiny_size':11,
-    'card_radius':12,'button_radius':8,'pill_radius':10,'border_width':1,
-    'control_height':30,'top_height':56,'nav_height':38,'footer_height':28,
+    'card_radius':15,'button_radius':9,'pill_radius':12,'border_width':1,
+    'control_height':30,'top_height':60,'nav_height':48,'footer_height':32,
     'dialog_body_size':14,'dialog_label_size':13,'dialog_title_size':20,
     'dialog_row_height':36,'dialog_control_height':34,
     'progress_running':'#E5484D','progress_done':'#248A3D','progress_idle':'#A1A1AA',
@@ -47,6 +49,7 @@ def button(parent,text,command,primary=False,width=90,**kwargs):
         fg_color=MACOS_THEME['primary'] if primary else MACOS_THEME['bg_input'],
         hover_color=MACOS_THEME['primary_hover'] if primary else MACOS_THEME['secondary_hover'],
         text_color=MACOS_THEME['white'] if primary else MACOS_THEME['text'],
+        text_color_disabled=MACOS_THEME['disabled'],
         border_width=0 if primary else MACOS_THEME['border_width'],border_color=MACOS_THEME['border_input'])
     opts.update(kwargs)
     return ctk.CTkButton(parent,**opts)
@@ -58,8 +61,10 @@ def entry(parent,var,width=140,**kwargs):
         border_width=MACOS_THEME['border_width'],corner_radius=MACOS_THEME['button_radius'])
     opts.update(kwargs)
     widget=ctk.CTkEntry(parent,**opts)
-    widget.bind('<FocusIn>',lambda _:widget.configure(border_color=MACOS_THEME['primary']),add='+')
-    widget.bind('<FocusOut>',lambda _:widget.configure(border_color=MACOS_THEME['border_input']),add='+')
+    widget.bind('<FocusIn>',lambda _:widget.configure(border_color=MACOS_THEME['primary'],
+        fg_color=MACOS_THEME['focus_surface']),add='+')
+    widget.bind('<FocusOut>',lambda _:widget.configure(border_color=opts['border_color'],
+        fg_color=opts['fg_color']),add='+')
     return widget
 
 def native_styles(root,scale=1):
@@ -119,6 +124,8 @@ class PercentProgress(ctk.CTkProgressBar):
 
     def set_state(self,state):
         self.configure(progress_color=MACOS_THEME['progress_done' if state=='done' else 'progress_running' if state in ('running','error') else 'progress_idle'])
+        if hasattr(self,'milestones'):
+            self.milestones.set_state(state)
 
     def destroy(self):
         self.percent_variable.trace_remove('write',self.trace)

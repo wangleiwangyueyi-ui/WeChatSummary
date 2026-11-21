@@ -6,6 +6,8 @@ from tkinter import ttk
 import webbrowser
 import customtkinter as ctk
 from macos_theme import MACOS_THEME, family, font, frame, label, button, entry, native_styles, PercentProgress, Tooltip, fitted_label
+from motion_ui import (PhaseDots, QuotaMeter, TabUnderline, bind_clear_undo,
+                       copy_log, motion_enabled, show_commands, toggle_focus)
 
 PAGES=['日常汇总','历史与人物查询','基础配置与初始化']
 
@@ -17,6 +19,7 @@ class PageStack(ctk.CTkFrame):
         self.pages={}
         self.current=None
         self.selector=None
+        self.underline=None
 
     def select(self,page):
         name=page if isinstance(page,str) and page in self.pages else next(n for n,p in self.pages.items() if p==page)
@@ -24,6 +27,7 @@ class PageStack(ctk.CTkFrame):
         self.pages[name].grid(row=0,column=0,sticky='nsew')
         self.current=name
         if self.selector: self.selector.set(name)
+        if self.underline: self.underline.select(name)
 
 def action(app,parent,name,text,command,**kwargs):
     widget=button(parent,text,command,**kwargs)
@@ -87,12 +91,16 @@ def build_shell(app):
         page=frame(app.tabs)
         app.tabs.pages[name]=page
         setattr(app,attribute,page)
-    app.page_control=ctk.CTkSegmentedButton(nav,values=PAGES,command=app.tabs.select,
+    tabs_box=frame(nav,fg_color=t['nav_surface'],corner_radius=10)
+    tabs_box.grid(row=0,column=0,pady=2,sticky='w')
+    app.page_control=ctk.CTkSegmentedButton(tabs_box,values=PAGES,command=app.tabs.select,
         font=font('body_size',True),height=32,corner_radius=8,
-        fg_color=t['border_card'],selected_color=t['white'],selected_hover_color=t['white'],
-        unselected_color=t['border_card'],unselected_hover_color=t['bg_input'],text_color=t['text'])
-    app.page_control.grid(row=0,column=0,pady=2,sticky='w')
+        fg_color=t['nav_surface'],selected_color=t['white'],selected_hover_color=t['white'],
+        unselected_color=t['nav_surface'],unselected_hover_color=t['bg_input'],text_color=t['text'])
+    app.page_control.pack(padx=3,pady=(3,0),fill='x')
     app.tabs.selector=app.page_control
+    app.tabs.underline=TabUnderline(tabs_box,app.page_control,PAGES)
+    app.tabs.underline.pack(fill='x',padx=4,pady=(0,3))
     utilities=frame(nav)
     utilities.grid(row=0,column=1,sticky='e',padx=(8,0))
     action(app,utilities,'quota','额度管理',lambda:show_quota_settings(app),width=76,height=32).pack(side='left',padx=(0,6))
@@ -101,18 +109,24 @@ def build_shell(app):
     app.utility_commands={'cancel':app.cancel_task,'hide':app.hide,'exit':app.exit}
     for name,text,width in [('cancel','取消任务',76),('hide','隐藏',52),('exit','退出',52)]:
         action(app,utilities,name,text,app.utility_commands[name],width=width,height=32).pack(side='left',padx=(0,6))
+    commands=action(app,utilities,'commands','快捷指令',lambda:show_commands(app),width=76,height=32)
+    commands.pack(side='left')
+    Tooltip(commands,'搜索页面和常用操作（Ctrl+K）')
+    root.bind('<Control-k>',lambda event:show_commands(app,event) if event.widget.winfo_toplevel()==root else None,add='+')
     app.footer=footer=frame(root,fg_color=t['footer'],height=t['footer_height'])
     footer.grid(row=3,column=0,sticky='ew')
     footer.grid_propagate(False)
     footer.grid_columnconfigure(0,weight=1)
-    frame(footer,fg_color=t['border_input'],height=1).grid(row=0,column=0,columnspan=4,sticky='ew')
+    frame(footer,fg_color=t['border_input'],height=1).grid(row=0,column=0,columnspan=5,sticky='ew')
     fitted_label(footer,app.status,width=130,size='tiny_size',height=24).grid(row=1,column=0,sticky='ew',padx=(12,6))
     fitted_label(footer,app.key_status,width=140,size='tiny_size',muted=True,height=24,
         transform=lambda text:text.replace('本机已保存数据库密钥：','本机密钥：')).grid(row=1,column=1,sticky='e',padx=4)
     fitted_label(footer,app.progress_text,width=170,size='tiny_size',height=24).grid(row=1,column=2,padx=6)
     app.progress_bar=PercentProgress(footer,app.progress_value,width=140,height=8,
         corner_radius=4,progress_color=t['progress_idle'],fg_color=t['border_card'])
-    app.progress_bar.grid(row=1,column=3,padx=(2,12))
+    app.progress_bar.milestones=PhaseDots(footer,app.progress_value)
+    app.progress_bar.milestones.grid(row=1,column=3,padx=(2,5))
+    app.progress_bar.grid(row=1,column=4,padx=(2,12))
     native_styles(root,top._get_widget_scaling())
     app.build_daily()
     app.build_history()
@@ -130,13 +144,19 @@ def build_usage_badges(app,parent):
     app.quota_badges={}
     for service,title in [('gemini','Gemini'),('pushplus','PushPlus')]:
         value=tk.StringVar(parent)
-        def update(*_,key=service,name=title,display=value):
+        card=frame(parent,card=True,corner_radius=10)
+        card.pack(side='left',padx=(6,0))
+        pill=label(card,textvariable=value,size='small_size',height=22)
+        pill.pack(fill='x',padx=6,pady=(2,0))
+        meter=QuotaMeter(card)
+        meter.pack(fill='x',padx=7,pady=(0,4))
+        def update(*_,key=service,name=title,display=value,track=meter):
             text=app.usage_vars[key].get()
             match=re.search(r'(\d+)/(\d+).*?（([\d.]+)%）',text)
             display.set(f' {name}: {match[1]}/{match[2]} (余{match[3]}%) ' if match else f' {name}: 待配置/确认 ')
+            used, limit = (int(match[1]), int(match[2])) if match else (0, 0)
+            track.set(used,limit)
         app.usage_vars[service].trace_add('write',update)
-        pill=label(parent,textvariable=value,size='small_size',height=26,corner_radius=t['pill_radius'],fg_color=t['bg_input'])
-        pill.pack(side='left',padx=(8,0))
         Tooltip(pill,lambda s=service:('统计模型：'+app.cfg['model']+'\n' if s=='gemini' else '')+app.usage_vars[s].get()+'\n'+app.current_usage.get()+'\n'+app.usage_source.get())
         app.quota_badges[service]=pill
     label(parent,' 本地 OCR/语音：免费 ',size='small_size',height=26,corner_radius=t['pill_radius'],fg_color=t['bg_input']).pack(side='left',padx=(8,0))
@@ -173,7 +193,9 @@ def build_daily(app):
     app.search.trace_add('write',lambda *_:app.draw_groups())
     app.search_entry=search_box(app,row,app.search,'search_daily',app.draw_groups)
     app.search_entry.master.grid(row=0,column=1,sticky='ew')
-    action(app,row,'clear_daily','清空',lambda:app.search.set(''),width=48).grid(row=0,column=2,padx=6)
+    clear=action(app,row,'clear_daily','清空',lambda:None,width=48)
+    clear.grid(row=0,column=2,padx=6)
+    bind_clear_undo(app.search_entry,app.search,clear)
     app.group_count=tk.StringVar(value='请刷新群列表')
     fitted_label(row,app.group_count,width=160,size='small_size',muted=True,
         transform=lambda text:text.split('；')[0]).grid(row=0,column=3,padx=4)
@@ -204,7 +226,13 @@ def build_daily(app):
     app.root.bind('<MouseWheel>',app.scroll_groups,add='+')
     actions=frame(card)
     actions.grid(row=2,column=0,sticky='ew',padx=12,pady=8)
-    label(actions,'支持搜索与鼠标滚轮浏览',size='small_size',muted=True).pack(side='left')
+    app.focus_button=action(app,actions,'focus_mode','专注',lambda:toggle_focus(app),width=76)
+    app.focus_button.pack(side='left',padx=(0,8))
+    Tooltip(app.focus_button,'收起顶部概览，留出更多空间给群列表')
+    app.selection_count=label(actions,'已勾选 0 个群',size='small_size',fg_color=t['selected_bg'],
+        text_color=t['selected_text'],corner_radius=t['pill_radius'])
+    app.selection_count.pack(side='left',ipadx=8)
+    app.group_count.trace_add('write',lambda *_:refresh_selection(app))
     app.daily_button=action(app,actions,'daily_job','立即生成过去 24 小时日报',app.daily_job,primary=True,width=208)
     app.daily_button.pack(side='right')
 
@@ -229,7 +257,9 @@ def build_history(app):
     app.history_search.trace_add('write',lambda *_:app.filter_history_groups())
     app.history_search_entry=search_box(app,row,app.history_search,'search_history',app.filter_history_groups)
     app.history_search_entry.master.grid(row=0,column=1,sticky='ew')
-    action(app,row,'clear_history','清空',lambda:app.history_search.set(''),width=44).grid(row=0,column=2,padx=6)
+    clear=action(app,row,'clear_history','清空',lambda:None,width=44)
+    clear.grid(row=0,column=2,padx=6)
+    bind_clear_undo(app.history_search_entry,app.history_search,clear)
     label(row,'目标群聊').grid(row=0,column=3,padx=(6,8))
     app.group_choice=ttk.Combobox(row,state='readonly',width=20,style='Mac.TCombobox',
         font=(family(app.root),-round(t['body_size']*row._get_widget_scaling())))
@@ -269,7 +299,11 @@ def build_history(app):
     card.grid(row=1,column=0,sticky='nsew')
     card.grid_columnconfigure(0,weight=1)
     card.grid_rowconfigure(1,weight=1)
-    label(card,'运行日志',size='section_size',bold=True).grid(row=0,column=0,sticky='w',padx=14,pady=(8,4))
+    heading=frame(card)
+    heading.grid(row=0,column=0,sticky='ew',padx=14,pady=(8,4))
+    label(heading,'运行日志',size='section_size',bold=True).pack(side='left')
+    copy=action(app,heading,'copy_log','复制日志',lambda:copy_log(app,copy),width=92,height=26)
+    copy.pack(side='right')
     content=frame(card,fg_color=t['log'],corner_radius=8)
     content.grid(row=1,column=0,sticky='nsew',padx=10,pady=(0,10))
     content.grid_columnconfigure(0,weight=1)
@@ -294,7 +328,7 @@ def build_config(app):
     outer.grid(row=0,column=0,sticky='nsew')
     outer.grid_columnconfigure(0,weight=1)
     core=frame(outer,card=True)
-    core.grid(row=0,column=0,sticky='ew',padx=2,pady=(12,8))
+    core.grid(row=0,column=0,sticky='ew',padx=2,pady=(10,6))
     core.grid_columnconfigure(1,weight=1)
     label(core,'接口与路径配置',size='section_size',bold=True).grid(row=0,column=0,columnspan=3,sticky='w',padx=12,pady=(8,4))
     app.fields={}
@@ -304,7 +338,7 @@ def build_config(app):
         ('V2 图片密钥（必需）','image_key_hex',True),('导出文件保存目录','export_dir',False)]
     for row,(text,key,secret) in enumerate(specs,1):
         caption=frame(core)
-        caption.grid(row=row,column=0,sticky='e',padx=(12,8),pady=2)
+        caption.grid(row=row,column=0,sticky='e',padx=(12,8),pady=1)
         label(caption,text,size='small_size').pack(side='left')
         if key in ('gemini_api_key','pushplus_token','image_key_hex'):
             command=(lambda:show_image_key_help(app)) if key=='image_key_hex' else (lambda url=GEMINI_KEYS_URL if key=='gemini_api_key' else PUSHPLUS_KEYS_URL:webbrowser.open(url))
@@ -322,14 +356,14 @@ def build_config(app):
         else:
             widget=entry(core,var,width=150,height=28,show='•' if secret else '')
         app.field_entries[key]=widget
-        widget.grid(row=row,column=1,sticky='ew',padx=(0,8),pady=2)
+        widget.grid(row=row,column=1,sticky='ew',padx=(0,8),pady=1)
         if key in ('gemini_api_key','pushplus_token'):
             service='gemini' if key=='gemini_api_key' else 'pushplus'
-            action(app,core,'manage_'+service,'＋ 管理',lambda s=service:show_credentials(app,s),width=80,height=28).grid(row=row,column=2,padx=(0,12),pady=2)
+            action(app,core,'manage_'+service,'＋ 管理',lambda s=service:show_credentials(app,s),width=80,height=28).grid(row=row,column=2,padx=(0,12),pady=1)
         elif key=='export_dir':
-            action(app,core,'choose_export_dir','选择目录',app.choose_export_dir,width=80,height=28).grid(row=row,column=2,padx=(0,12),pady=2)
+            action(app,core,'choose_export_dir','选择目录',app.choose_export_dir,width=80,height=28).grid(row=row,column=2,padx=(0,12),pady=1)
         elif key=='wechat_dir':
-            action(app,core,'choose_wechat_dir','选择目录',app.choose_wechat_dir,width=80,height=28).grid(row=row,column=2,padx=(0,12),pady=2)
+            action(app,core,'choose_wechat_dir','选择目录',app.choose_wechat_dir,width=80,height=28).grid(row=row,column=2,padx=(0,12),pady=1)
     controls=frame(core)
     controls.grid(row=8,column=0,columnspan=3,sticky='ew',padx=12,pady=(6,8))
     label(controls,'凭据在本机加密保存 · 两个服务均支持备用凭据',size='tiny_size',muted=True).pack(side='left')
@@ -351,9 +385,15 @@ def build_config(app):
         action(app,row,name,text,command,width=width,height=28,font=font('small_size')).pack(side='left',padx=(0,6))
 
 def group_row(app,text,var):
-    row=ttk.Checkbutton(app.group_frame,text=text,variable=var,style='Group.TCheckbutton')
+    row=ttk.Checkbutton(app.group_frame,text=text,variable=var,style='Group.TCheckbutton',
+        command=lambda:refresh_selection(app))
     row.pack(fill='x',padx=4,pady=4)
     return row
+
+
+def refresh_selection(app):
+    count=sum(var.get() for rid,var in app.selected.items() if rid in app.groups)
+    app.selection_count.configure(text=f'已勾选 {count} 个群')
 
 def empty_groups(app,text):
     ttk.Label(app.group_frame,text=text,padding=12,style='Card.TLabel').pack(anchor='w')
@@ -377,7 +417,7 @@ def history_attention(app,flash=False):
     def pulse(index=0):
         app.history_hint.configure(text_color=MACOS_THEME['attention_soft'] if index%2 else MACOS_THEME['attention'])
         app.history_hint_job=app.root.after(600,lambda:pulse(index+1)) if index<6 else None
-    if flash:pulse()
+    if flash and motion_enabled(app.root):pulse()
     else:app.history_hint.configure(text_color=MACOS_THEME['attention'])
 
 

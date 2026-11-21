@@ -11,6 +11,7 @@ from version import VERSION
 from update_service import read_release, choose_asset, download_verified, RELEASES_URL
 from macos_dialogs import dialog, reveal, frame, label, button
 from macos_theme import font, MACOS_THEME as T
+from motion_ui import motion_enabled
 
 
 def show_updates(app, components=False):
@@ -37,13 +38,20 @@ def show_updates(app, components=False):
     state = {'asset':None,'path':None,'working':True}
     events, stop = queue.Queue(), threading.Event()
 
+    def set_action(enabled, caption=None):
+        action.configure(state='normal' if enabled else 'disabled',
+                         fg_color=T['primary'] if enabled else T['bg_input'])
+        if caption is not None:
+            action.configure(text=caption)
+
     def close():
         stop.set()
+        bar.stop()
         window.destroy()
 
     def run(fn, kind):
         state['working']=True
-        action.configure(state='disabled')
+        set_action(False)
         def worker():
             try:
                 events.put((kind,fn()))
@@ -78,7 +86,7 @@ def show_updates(app, components=False):
 
     action=button(actions,'下载并校验',download,width=128,primary=True)
     action.pack(side='right')
-    action.configure(state='disabled')
+    set_action(False)
     button(actions,'关闭',close,width=72).pack(side='right',padx=8)
     window.protocol('WM_DELETE_WINDOW',close)
 
@@ -89,6 +97,9 @@ def show_updates(app, components=False):
             kind,value=events.get_nowait()
             if kind=='release':
                 state['working']=False
+                bar.stop()
+                bar.configure(mode='determinate')
+                bar.set(0)
                 state['asset']=choose_asset(value,INSTALLED,components)
                 size=state['asset']['size']/1024**2
                 info = f'最新版本：v{value["version"]}\n下载大小：{size:.1f} MB\n\n'
@@ -101,22 +112,27 @@ def show_updates(app, components=False):
                     info += '更新保留个人配置、密钥和群聊选择。相同运行环境优先下载小型程序更新包。\n\n'
                 info += value['notes']
                 body.configure(state='normal');body.delete('1.0','end');body.insert('end',info);body.configure(state='disabled')
-                status.configure(text='发现新版本' if value['newer'] else '当前已是最新正式版本')
-                action.configure(state='normal' if value['newer'] or components else 'disabled')
+                status.configure(text='可安装图片 / 语音组件' if components else
+                                 '发现新版本' if value['newer'] else '✓ 当前已是最新正式版本')
+                enabled = value['newer'] or components
+                set_action(enabled, '下载并校验' if enabled else '已是最新版')
             elif kind=='progress':
                 n,total=value;bar.set(n/total)
                 status.configure(text=f'下载中 {n/total:.0%} · {n/1024**2:.1f}/{total/1024**2:.1f} MB')
             elif kind=='downloaded':
                 state.update(path=value,working=False)
+                bar.configure(progress_color=T['progress_done'])
                 bar.set(1);status.configure(text='SHA-256 校验通过；点击安装后退出软件。')
-                action.configure(text='退出并安装',state='normal')
+                set_action(True, '退出并安装')
             elif kind=='error':
                 state['working']=False
+                bar.stop()
+                bar.configure(mode='determinate',progress_color=T['progress_running'])
                 status.configure(text='检查或下载未完成')
                 body.configure(state='normal');body.delete('1.0','end')
                 body.insert('end',value+'\n\n可点击“发布页面”手动下载；GitHub 连接失败不会影响日常汇总。')
                 body.configure(state='disabled')
-                if state['asset']:action.configure(state='normal')
+                if state['asset']:set_action(True, '重试下载')
         window.after(100,poll)
 
     # Choose/validate the component in the worker so malformed releases cannot
@@ -125,6 +141,9 @@ def show_updates(app, components=False):
         value=read_release()
         choose_asset(value,INSTALLED,components)
         return value
+    if motion_enabled(window):
+        bar.configure(mode='indeterminate')
+        bar.start()
     run(check,'release')
     window.after(100,poll)
     reveal(window)
