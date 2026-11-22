@@ -1,26 +1,32 @@
 # 微信聊天总结分析助手
 
-Windows 10/11 64 位桌面工具：读取本机已同步的微信群记录，导出历史、按人物筛选，使用 Gemini 汇总并通过 PushPlus 发送到自己的手机。
+<img src="assets/wechat-summary.png" alt="微信聊天总结分析助手图标" width="88" align="right">
 
-## 下载与安装
+这款 Windows 10/11 64 位工具可以导出本机已同步的微信群聊，按人物筛选，也可以用 Gemini 汇总并通过 PushPlus 发到手机。
 
-打开 [正式版本下载页](https://github.com/wangleiwangyueyi-ui/WeChatSummary/releases/latest)。
+## 第一次安装
+
+**[直接下载 Windows 主安装包 v1.2.6（Setup）](https://github.com/wangleiwangyueyi-ui/WeChatSummary/releases/download/v1.2.6/WeChatSummary-Setup-1.2.6.exe)**
+
+双击已包含 Python 的主安装包，保留默认勾选的「创建桌面快捷方式」。装好后，在桌面双击「微信聊天总结分析助手」，也可以在开始菜单搜索同名应用。
+
+### 安装后怎么配置
+
+1. 打开 Windows 微信，让要导出的群聊同步到本机。再打开本工具的「基础配置与初始化」。
+2. 选择包含 `db_storage` 的微信账号文件夹，按「首次离线初始化向导」完成本机初始化。微信版本兼容性以向导的校验结果为准。
+3. **只导出文字**，到「历史与人物查询」选群和时间，点击「仅导出记录」。**需要 AI 总结**，在基础配置中填自己的 Gemini API Key。**需要手机推送**，再填自己的 PushPlus Token。填好后点击「保存参数」。
+4. **需要识图或语音转写**，在「基础配置与初始化 → 图片/语音组件」按需安装。需要处理 V2 加密图片时，再完成本机图片密钥初始化。
+5. **需要每天自动汇总**，在「日常汇总」勾选群聊、选择运行时间，点击「保存日常设置」，再点击「启用定时计划」。
+
+### 其他下载
+
+[查看最新正式版及全部安装包](https://github.com/wangleiwangyueyi-ui/WeChatSummary/releases/latest)
 
 | 文件 | 适合谁 | 内容 |
 | --- | --- | --- |
 | `WeChatSummary-Setup-版本.exe` | 第一次安装 | 主程序、Python 运行环境、文本导出、Gemini 和 PushPlus 接口 |
 | `WeChatSummary-Media-版本.exe` | 需要识图、语音转写 | 可选本地 OCR、语音引擎与语音模型，先装主程序，再装到同一目录 |
 | `WeChatSummary-Update-版本.exe` | 已安装用户 | 小型程序更新；运行环境有变化时改用 Setup |
-
-普通用户不必安装 Python、不必运行 pip。模型保留在本机，不需要每次升级重新下载。
-
-首次安装后：
-
-1. 打开“基础配置与初始化”，选择自己电脑上包含 `db_storage` 的微信账号文件夹。
-2. 根据“首次离线初始化”向导完成本机初始化。微信版本兼容性以实际校验为准；每台新电脑都需要独立初始化。
-3. 填入自己的 Gemini Key、PushPlus Token；代理按自己网络填写，没有则留空。密钥加密保存在当前 Windows 用户目录中。
-4. 若使用图片或语音，安装可选组件，按需初始化图片密钥，然后勾选本地识别功能并保存。
-5. 选择群聊、保存日常设置，再启用自动运行。只导出文字不需要 Gemini Key；云端总结和推送需要对应服务可用额度。
 
 ## 更新
 

@@ -77,6 +77,20 @@ class ReleaseTests(unittest.TestCase):
         self.assertFalse(DEFAULT['selected_groups'])
         self.assertFalse(DEFAULT['enable_voice_asr'])
 
+    def test_release_scan_only_allows_project_icon_paths(self):
+        from release_tools.publish_release import scan
+
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp)
+            assets = source/'assets'
+            assets.mkdir()
+            for name in ('wechat-summary.ico', 'wechat-summary.png'):
+                (assets/name).write_bytes((Path(__file__).parent/'assets'/name).read_bytes())
+            scan(source)
+            (source/'screenshot.png').write_bytes((assets/'wechat-summary.png').read_bytes())
+            with self.assertRaisesRegex(ValueError, 'screenshot.png'):
+                scan(source)
+
     def test_installed_data_path_preserves_existing_portable_config(self):
         import app_paths
         with tempfile.TemporaryDirectory() as tmp:

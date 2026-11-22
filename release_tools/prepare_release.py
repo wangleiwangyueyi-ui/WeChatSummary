@@ -25,11 +25,12 @@ model_catalog.py motion_ui.py quota_service.py report_format.py scheduler.py sec
 ui_extras.py usage_tracker.py voice_reader.py wechat_gui.pyw update_service.py update_ui.py version.py
 initialize_offline.pyw initialize_images.pyw clear_wechat_logs.ps1'''.split()
 DOCUMENTS = ['LICENSE','THIRD_PARTY.txt','requirements.txt','README.md','软件使用说明.html','软件使用说明.txt','总结模板预览.html']
+ASSETS = ['assets/wechat-summary.ico']
 BOOTSTRAP = ['image_key_once.py','bootstrap/__init__.py','bootstrap/common.py','bootstrap/key.py','bootstrap/LICENSE','bootstrap/NOTICE.txt']
 DEVELOPMENT = ['release_tools/prepare_release.py','release_tools/installer.iss','release_tools/build_release.ps1',
                'release_tools/make_manifest.py','release_tools/publish_release.py','test_distribution.py',
                'release_tools/MODEL_LICENSE','release_tools/fetch_model.py',
-               '.gitignore','.github/workflows/validate.yml','UPGRADING.md','CHANGELOG.md']
+               '.gitignore','.github/workflows/validate.yml','UPGRADING.md','CHANGELOG.md','assets/wechat-summary.png']
 CORE = ['pycryptodome','lz4','zstandard','pillow','google-genai','requests','pystray','tzdata','customtkinter']
 MEDIA = ['rapidocr-onnxruntime','pilk-nogil','sherpa-onnx','av']
 
@@ -75,14 +76,14 @@ def prepare(output,runtime,models,conda_packages=None):
     if output.exists():raise ValueError('Choose a new empty output directory: '+str(output))
     output.mkdir(parents=True)
     source,core,media,update=[output/name for name in ('source','setup','media','update')]
-    for name in PROGRAM+DOCUMENTS+BOOTSTRAP+DEVELOPMENT:
+    for name in PROGRAM+DOCUMENTS+ASSETS+BOOTSTRAP+DEVELOPMENT:
         if not (ROOT/name).is_file():raise FileNotFoundError(name)
         copy_file(ROOT/name,source/name)
-    for name in PROGRAM+DOCUMENTS+BOOTSTRAP:
+    for name in PROGRAM+DOCUMENTS+ASSETS+BOOTSTRAP:
         copy_file(ROOT/name,core/name)
     # Routine updates do not reinstall memory-reading initialization helpers that
     # users deliberately removed after initialization.
-    for name in PROGRAM+DOCUMENTS:
+    for name in PROGRAM+DOCUMENTS+ASSETS:
         copy_file(ROOT/name,update/name)
     marker=json.dumps({'layout':1,'version':VERSION,'runtime_version':RUNTIME_VERSION})
     for tree in (core,update):

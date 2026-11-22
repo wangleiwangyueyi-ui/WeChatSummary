@@ -58,7 +58,8 @@ UsePreviousTasks=yes
 SetupLogging=yes
 #if Kind != "media"
 LicenseFile={#Payload}\LICENSE
-UninstallDisplayIcon={app}\runtime\pythonw.exe
+SetupIconFile={#Payload}\assets\wechat-summary.ico
+UninstallDisplayIcon={app}\assets\wechat-summary.ico
 #endif
 #if Kind == "media"
 UninstallFilesDir={app}\uninstall-media
@@ -71,12 +72,18 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 [Files]
 Source: "{#Payload}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
+#if Kind != "media"
 #if Kind == "setup"
 [Tasks]
 Name: "desktopicon"; Description: "创建桌面快捷方式"; Flags: checkedonce
+#endif
 [Icons]
-Name: "{autoprograms}\微信聊天总结分析助手"; Filename: "{app}\runtime\pythonw.exe"; Parameters: "-s ""{app}\wechat_gui.pyw"""; WorkingDir: "{app}"; Check: not WizardNoIcons
-Name: "{autodesktop}\微信聊天总结分析助手"; Filename: "{app}\runtime\pythonw.exe"; Parameters: "-s ""{app}\wechat_gui.pyw"""; WorkingDir: "{app}"; Tasks: desktopicon
+Name: "{autoprograms}\微信聊天总结分析助手"; Filename: "{app}\runtime\pythonw.exe"; Parameters: "-s ""{app}\wechat_gui.pyw"""; WorkingDir: "{app}"; IconFilename: "{app}\assets\wechat-summary.ico"; Check: not WizardNoIcons
+#if Kind == "setup"
+Name: "{autodesktop}\微信聊天总结分析助手"; Filename: "{app}\runtime\pythonw.exe"; Parameters: "-s ""{app}\wechat_gui.pyw"""; WorkingDir: "{app}"; IconFilename: "{app}\assets\wechat-summary.ico"; Tasks: desktopicon
+#else
+Name: "{autodesktop}\微信聊天总结分析助手"; Filename: "{app}\runtime\pythonw.exe"; Parameters: "-s ""{app}\wechat_gui.pyw"""; WorkingDir: "{app}"; IconFilename: "{app}\assets\wechat-summary.ico"; Check: HasDesktopShortcut
+#endif
 #endif
 #if Kind != "media"
 [Run]
@@ -84,6 +91,13 @@ Filename: "{app}\runtime\pythonw.exe"; Parameters: "-s ""{app}\wechat_gui.pyw"""
 #endif
 
 [Code]
+#if Kind == "update"
+function HasDesktopShortcut: Boolean;
+begin
+  Result := FileExists(ExpandConstant('{autodesktop}\微信聊天总结分析助手.lnk'));
+end;
+#endif
+
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
   Runtime: AnsiString;

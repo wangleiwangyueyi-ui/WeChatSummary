@@ -26,9 +26,16 @@ def credential():
 def scan(source):
     forbidden={'config.json','api_usage.sqlite','scheduler_state.json','source.json'}
     patterns=[r'AIza[\w-]{25,}',r'gh[pousr]_[A-Za-z0-9]{30,}',r'github_pat_[A-Za-z0-9_]{30,}']
+    icons={'assets/wechat-summary.ico':b'\x00\x00\x01\x00',
+           'assets/wechat-summary.png':b'\x89PNG\r\n\x1a\n'}
     for path in source.rglob('*'):
         if not path.is_file() or '.git' in path.parts or '__pycache__' in path.parts:continue
-        if path.name in forbidden or path.suffix.lower() in ('.dpapi','.sqlite','.exe','.png','.jpg','.onnx','.log'):
+        relative=path.relative_to(source).as_posix()
+        if relative in icons:
+            if path.is_symlink() or path.stat().st_size>512*1024 or not path.read_bytes().startswith(icons[relative]):
+                raise ValueError('Unexpected icon file: '+relative)
+            continue
+        if path.name in forbidden or path.suffix.lower() in ('.dpapi','.sqlite','.exe','.ico','.png','.jpg','.onnx','.log'):
             raise ValueError('Private/build file in source: '+str(path.relative_to(source)))
         text=path.read_text(encoding='utf-8-sig')
         if any(re.search(pattern,text) for pattern in patterns):
