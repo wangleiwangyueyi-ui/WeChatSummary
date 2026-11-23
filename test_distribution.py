@@ -10,6 +10,29 @@ import update_service as updates
 
 
 class ReleaseTests(unittest.TestCase):
+    def test_setup_and_update_both_ship_database_initialization(self):
+        from release_tools import prepare_release as builder
+        required = ('initialize_offline.pyw', 'database_key_setup.py',
+                    'bootstrap/__init__.py', 'bootstrap/key.py', 'bootstrap/common.py')
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            project = root/'project'
+            for name in builder.PROGRAM + builder.DOCUMENTS + builder.ASSETS + builder.BOOTSTRAP + builder.DEVELOPMENT:
+                path = project/name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text('test fixture', encoding='utf-8')
+            runtime = root/'runtime'
+            runtime.mkdir()
+            models = root/'models'
+            models.mkdir()
+            for name in ('model.int8.onnx', 'tokens.txt', 'README.md'):
+                (models/name).write_text('test fixture', encoding='utf-8')
+            with patch.object(builder, 'ROOT', project), patch.object(builder, 'dependencies', return_value={}):
+                builder.prepare(root/'output', runtime, models)
+            for kind in ('setup', 'update'):
+                for name in required:
+                    self.assertEqual((root/'output'/kind/name).read_bytes(), (project/name).read_bytes())
+
     def release(self):
         files={};remote=[]
         for kind in ('setup','update','media'):

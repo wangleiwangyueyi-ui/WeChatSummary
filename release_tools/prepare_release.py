@@ -82,9 +82,8 @@ def prepare(output,runtime,models,conda_packages=None):
         copy_file(ROOT/name,source/name)
     for name in PROGRAM+DOCUMENTS+ASSETS+BOOTSTRAP:
         copy_file(ROOT/name,core/name)
-    # Routine updates do not reinstall memory-reading initialization helpers that
-    # users deliberately removed after initialization.
-    for name in PROGRAM+DOCUMENTS+ASSETS:
+    # Both first installs and upgrades include the explicitly opened setup wizard.
+    for name in PROGRAM+DOCUMENTS+ASSETS+BOOTSTRAP:
         copy_file(ROOT/name,update/name)
     marker=json.dumps({'layout':1,'version':VERSION,'runtime_version':RUNTIME_VERSION})
     for tree in (core,update):

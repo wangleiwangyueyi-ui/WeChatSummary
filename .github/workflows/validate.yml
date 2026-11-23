@@ -12,6 +12,6 @@ jobs:
       - uses: actions/setup-python@v7.1.0
         with:
           python-version: '3.12'
-      - run: python -m pip install requests
+      - run: python -m pip install requests packaging
       - run: python -m unittest test_distribution -v
-      - run: python -m compileall -q -x 'bootstrap' .
+      - run: python -m compileall -q .
