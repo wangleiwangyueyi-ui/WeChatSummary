@@ -158,7 +158,7 @@ class App:
     def save_base(self):
         if self.busy:
             messagebox.showinfo('任务运行中','请等待任务结束再修改基础参数。')
-            return
+            return False
         try:
             newcfg, secret = copy.deepcopy(self.cfg), load_secrets()
             for key,var in self.fields.items():
@@ -181,11 +181,14 @@ class App:
             self.status.set('基础参数已保存。可点击“刷新群列表”验证。')
             self.key_status.set(f'本机已保存数据库密钥：{len(secret.get("db_keys",{}))} 个')
             refresh_usage(self)
+            return True
         except Exception as exc:
             messagebox.showerror('保存失败',safe_error(exc,self.secrets))
+            return False
 
     def open_wizard(self):
-        self.import_export_keys()
+        from database_key_setup import open_setup
+        open_setup(self)
 
     def import_export_keys(self):
         path = filedialog.askopenfilename(parent=self.root, title='选择本机的 WeChatSummary 凭据备份',

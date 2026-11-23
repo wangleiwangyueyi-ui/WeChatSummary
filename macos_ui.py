@@ -392,7 +392,7 @@ def build_config(app):
     row=frame(tools)
     row.pack(fill='x',padx=12,pady=(0,10))
     for name,text,command,width in [
-        ('open_wizard','离线数据库凭据',app.open_wizard,108),
+        ('open_wizard','提取数据库密钥',app.open_wizard,108),
         ('check_export_sources','重新校验分库',app.check_export_sources,104),
         ('open_image_wizard','初始化图片密钥',app.open_image_wizard,108),
         ('test_push','测试手机推送',app.test_push,88),
@@ -401,6 +401,11 @@ def build_config(app):
         ('check_updates','检查更新',app.check_updates,76),
         ('optional_components','图片/语音组件',app.optional_components,102)]:
         action(app,row,name,text,command,width=width,height=28,font=font('small_size')).pack(side='left',padx=(0,6))
+    backup_row=frame(tools)
+    backup_row.pack(fill='x',padx=12,pady=(0,10))
+    action(app,backup_row,'import_export_keys','导入已有凭据备份',app.import_export_keys,
+           width=132,height=28,font=font('small_size')).pack(side='left')
+
 
 def queue_group_search(app):
     if app.group_search_task is not None:
