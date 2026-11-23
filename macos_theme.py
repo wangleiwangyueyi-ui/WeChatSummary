@@ -1,4 +1,5 @@
 """Presentation-only design tokens and widgets. No settings or data mutations."""
+import sys
 import tkinter as tk
 from tkinter import ttk, font as tkfont
 import customtkinter as ctk
@@ -23,6 +24,20 @@ MACOS_THEME = {
     'attention':'#D70015','attention_soft':'#FF6961',
     'help_wheel_step':72,
 }
+
+def apply_window_icon(window):
+    if sys.platform != 'win32':
+        return
+    from app_paths import APP_DIR
+
+    icon = APP_DIR / 'assets' / 'wechat-summary.ico'
+    if icon.is_file():
+        try:
+            window.iconbitmap(str(icon))
+        except tk.TclError:
+            # The window should still open if a portable copy has a damaged icon.
+            pass
+
 
 def family(root):
     installed=set(tkfont.families(root))

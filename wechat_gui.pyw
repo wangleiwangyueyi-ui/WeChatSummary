@@ -14,8 +14,8 @@ import customtkinter as ctk
 from macos_theme import MACOS_THEME
 import macos_ui
 from tkinter import ttk, messagebox, filedialog
-from secure_store import BASE, load_config, save_config, load_secrets, save_secrets, safe_error
-from db_reader import contacts, latest_update
+from secure_store import BASE, load_config, save_config, load_secrets, save_secrets, safe_error, load_database_key_backup
+from db_reader import contacts, latest_update, verify_database_keys
 from group_search import group_catalog, matching_groups, month_before
 from jobs import times, due_slots, extract, push, Cancelled, export_directory, plan_text
 from scheduler import Scheduler
@@ -34,6 +34,7 @@ class App:
         self.root = root
         self.cfg = load_config()
         self.secrets = load_secrets()
+        self.offline_export_keys = None
         self.events = queue.Queue()
         self.cancel = threading.Event()
         self.busy = False
@@ -174,6 +175,8 @@ class App:
                 pass
             save_secrets(secret)
             save_config(newcfg)
+            if newcfg['wechat_dir'] != self.cfg['wechat_dir']:
+                self.offline_export_keys = None
             self.cfg,self.secrets = newcfg,secret
             self.status.set('基础参数已保存。可点击“刷新群列表”验证。')
             self.key_status.set(f'本机已保存数据库密钥：{len(secret.get("db_keys",{}))} 个')
@@ -182,11 +185,33 @@ class App:
             messagebox.showerror('保存失败',safe_error(exc,self.secrets))
 
     def open_wizard(self):
-        if not (APP_DIR/'bootstrap').is_dir():
-            messagebox.showinfo('初始化组件已移除','本机已完成初始化，临时提取组件已清理。新账号或重新初始化请联系作者。')
+        self.import_export_keys()
+
+    def import_export_keys(self):
+        path = filedialog.askopenfilename(parent=self.root, title='选择本机的 WeChatSummary 凭据备份',
+                                         filetypes=[('WeChatSummary 凭据备份', '*.dpapi')])
+        if not path:
             return
-        self.save_base()
-        subprocess.Popen([sys.executable,str(APP_DIR/'initialize_offline.pyw')],cwd=APP_DIR)
+        self.offline_export_keys = None
+        try:
+            backup = load_database_key_backup(path)
+            self.offline_export_keys = verify_database_keys(self.cfg, self.secrets.get('db_keys', {}), backup)
+        except (OSError, ValueError) as exc:
+            messagebox.showerror('凭据验证失败', safe_error(exc, self.secrets), parent=self.root)
+            return
+        messagebox.showinfo('数据库凭据已验证',
+                            '请选择群聊与时间范围，再点击“仅导出记录”。凭据将用于下一次本地导出，并随任务结束清除。',
+                            parent=self.root)
+
+    def check_export_sources(self):
+        keys = self.offline_export_keys or self.secrets.get('db_keys', {})
+        try:
+            verify_database_keys(self.cfg, keys)
+        except (OSError, ValueError) as exc:
+            messagebox.showerror('分库校验未通过', safe_error(exc, self.secrets), parent=self.root)
+            return
+        messagebox.showinfo('分库校验通过', '联系人数据库及全部消息分库均通过凭据校验。可以尝试仅导出记录。',
+                            parent=self.root)
 
     def open_image_wizard(self):
         if not (APP_DIR/'image_key_once.py').is_file():
@@ -238,11 +263,12 @@ class App:
         self.task_kind = kind
         self.task_started = time.monotonic()
         self.progress_value.set(0)
-        self.progress_stage = {'job':'本地预检','scheduled':'定时任务本地预检','groups':'刷新群列表',
+        self.progress_stage = {'job':'本地预检','export':'本地导出','scheduled':'定时任务本地预检','groups':'刷新群列表',
                                'health':'检查运行状态','push':'测试手机推送','quota':'查询 API 额度'}.get(kind,'正在执行')
         self.progress_text.set(self.progress_stage+' · 约 0%')
-        self.progress_bar.configure(mode='determinate' if kind in ('job','scheduled') else 'indeterminate')
-        if kind not in ('job','scheduled'):
+        determinate = kind in ('job','export','scheduled')
+        self.progress_bar.configure(mode='determinate' if determinate else 'indeterminate')
+        if not determinate:
             self.progress_bar.start(12)
         self.cancel.clear()
         self.status.set('正在执行…')
@@ -258,7 +284,7 @@ class App:
                     self.events.put(('cancel','任务已取消；当前请求已结束，未继续重试或推送'))
                     return
                 error = safe_error(exc,self.secrets)
-                if kind not in ('health','quota') and accounts(self.cfg,self.secrets,'pushplus'):
+                if kind not in ('export','health','quota') and accounts(self.cfg,self.secrets,'pushplus'):
                     try:
                         push(self.secrets.get('pushplus_token',''),'⚠️ 运行异常提醒',error,self.cfg,self.progress,self.cancel,secrets=self.secrets)
                         self.events.put(('error_sent',error))
@@ -413,7 +439,13 @@ class App:
 
     def run_extract(self, rooms, start, end, person, summarize):
         cfg,secret = copy.deepcopy(self.cfg),copy.deepcopy(self.secrets)
-        return self.launch(lambda:extract(cfg,secret,rooms,start,end,person,summarize,self.cancel,self.progress,self.approve_plan))
+        kind = 'job' if summarize else 'export'
+        if not summarize and self.offline_export_keys is not None:
+            secret['db_keys'] = self.offline_export_keys
+        started = self.launch(lambda:extract(cfg,secret,rooms,start,end,person,summarize,self.cancel,self.progress,self.approve_plan),kind)
+        if started and not summarize:
+            self.offline_export_keys = None
+        return started
 
     def test_push(self):
         token = self.secrets.get('pushplus_token','')
@@ -544,6 +576,8 @@ class App:
                         self.scheduler.finish(self.active_schedule)
                         self.active_schedule = None
                     msg = f'任务完成，生成 {len(result)} 个本地文件；推送状态见运行记录'
+                elif task == 'export':
+                    msg = f'导出完成，生成 {len(result)} 个本地文件'
                 elif task == 'quota':
                     values = result if isinstance(result,list) else [result]
                     for info in values:
@@ -562,9 +596,10 @@ class App:
                 msg = value
             else:
                 msg = '执行失败：'+value
-                if kind != 'error_sent' and self.task_kind != 'quota':
+                if kind != 'error_sent' and self.task_kind not in ('export','quota'):
                     self.cfg['pending_alert'] = msg
-                self.next_health = min(self.next_health,time.monotonic()+20)
+                if self.task_kind != 'export':
+                    self.next_health = min(self.next_health,time.monotonic()+20)
             if kind == 'done':
                 self.progress_bar.set_state('done')
                 self.progress_value.set(100)
@@ -585,10 +620,12 @@ class App:
                     self.scheduler.failed(datetime.now())
                 self.active_schedule = None
             self.last_task = (TASK_NAMES.get(self.task_kind,'任务'), msg)
-            self.cfg['last_run_status'] = f'{datetime.now():%m-%d %H:%M} {msg}'
-            save_config(self.cfg)
-            self.status.set(self.cfg['last_run_status'])
-            self.log.insert('end',self.cfg['last_run_status']+'\n')
+            status = f'{datetime.now():%m-%d %H:%M} {msg}'
+            if self.task_kind != 'export':
+                self.cfg['last_run_status'] = status
+                save_config(self.cfg)
+            self.status.set(status)
+            self.log.insert('end',status+'\n')
             self.log.see('end')
         self.root.after(150,self.poll)
 

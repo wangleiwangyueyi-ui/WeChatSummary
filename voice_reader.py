@@ -9,8 +9,9 @@ from secure_store import BASE, atomic_bytes, protect, safe_error
 from app_paths import MODEL_DIR
 
 class VoiceReader:
-    def __init__(self, cfg, secrets, cancel, progress):
+    def __init__(self, cfg, secrets, cancel, progress, *, persist_cache=True):
         self.cfg, self.secrets, self.cancel, self.progress = cfg, secrets, cancel, progress
+        self.persist_cache = persist_cache
         self.stack = ExitStack()
         self.connections = {}
         self.recognizer = None
@@ -80,7 +81,8 @@ class VoiceReader:
             raise ValueError('未识别到可读文字')
         self.cache[digest] = value
         self.cache = dict(list(self.cache.items())[-5000:])
-        atomic_bytes(self.cache_path, protect(json.dumps(self.cache,ensure_ascii=False).encode('utf-8')))
+        if self.persist_cache:
+            atomic_bytes(self.cache_path, protect(json.dumps(self.cache,ensure_ascii=False).encode('utf-8')))
         return value
 
     def read(self, row):

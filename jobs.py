@@ -10,7 +10,7 @@ import threading
 import time
 from urllib.parse import urlparse
 import requests
-from db_reader import contacts, display, messages
+from db_reader import contacts, display, messages, verify_database_keys
 from message_parser import ImageReader, render
 from voice_reader import VoiceReader
 from secure_store import BASE, atomic_bytes
@@ -307,6 +307,8 @@ def estimate_calls(part_counts, push_enabled, maximum=100, resume_push_parts=0):
                 local_api=0)
 
 def plan_text(plan):
+    if plan.get('local_only'):
+        return f'有效记录 {plan["records"]} 条，将导出 {plan["groups"]} 个群。Gemini 和 PushPlus 均为 0 次调用。'
     return (f'有效记录 {plan["records"]} 条；本地导出 {plan["groups"]} 个群\n'
             f'Gemini：预计 {plan["gemini_estimate"]} 次（分段 {plan["gemini_chunks"]} 次，其余为合并预估）；含重试最多 {plan["gemini_max"]} 次\n'
             f'PushPlus：预计 {plan["pushplus_estimate"]} 次；长报告拆分会增加次数，发送前再次核对\n'
@@ -319,12 +321,15 @@ def extract(cfg, secrets, rooms, start, end, person, summarize, cancel, progress
         raise ValueError('请至少选择一个群聊')
     if start > end:
         raise ValueError('起始时间不能晚于结束时间')
+    if not summarize:
+        progress({'percent':1,'stage':'本地预检','text':'正在校验联系人与全部消息分库'})
+        verify_database_keys(cfg, secrets.get('db_keys', {}), cancel=cancel)
     progress({'percent':1,'stage':'本地预检','text':'正在准备联系人与消息库；尚未调用外部 API'})
     check_cancel(cancel)
     people = contacts(cfg, secrets, cancel)
     images = ImageReader(cfg['wechat_dir'], secrets)
-    voices = VoiceReader(cfg, secrets, cancel, progress)
-    job_id = cfg.get('scheduled_job_id')
+    voices = VoiceReader(cfg, secrets, cancel, progress, persist_cache=summarize)
+    job_id = cfg.get('scheduled_job_id') if summarize else None
     receipt_path = BASE/'scheduled_receipts'/f'{job_id}.json' if job_id else None
     receipt = {}
     if receipt_path:
@@ -367,23 +372,24 @@ def extract(cfg, secrets, rooms, start, end, person, summarize, cancel, progress
                 elif summarize:
                     values = (r[0] for r in conn.execute('SELECT body FROM entries WHERE room=? ORDER BY moment,identity',(room,)))
                     part_counts[room] = sum(1 for _ in chunks(values))
-            plan = estimate_calls(list(part_counts.values()),any(a.get('enabled',True) for a in accounts(cfg,secrets,'pushplus')),
-                                  int(cfg.get('max_api_calls',100)),resume_push_parts)
-            plan.update(records=conn.execute('SELECT count(*) FROM entries').fetchone()[0],groups=len(rooms))
+            push_enabled = summarize and any(a.get('enabled',True) for a in accounts(cfg,secrets,'pushplus'))
+            plan = estimate_calls(list(part_counts.values()),push_enabled,int(cfg.get('max_api_calls',100)),resume_push_parts)
+            plan.update(records=conn.execute('SELECT count(*) FROM entries').fetchone()[0],groups=len(rooms),local_only=not summarize)
             progress({'percent':55,'stage':'调用次数预估','text':plan_text(plan)})
             if approve_plan is not None and not approve_plan(plan):
                 raise Cancelled('已取消，尚未发送本次聊天内容到外部 API')
             check_cancel(cancel)
-            if plan['gemini_chunks'] > int(cfg.get('max_api_calls',100)):
-                raise ValueError(f'仅分段就需 {plan["gemini_chunks"]} 次 Gemini 调用，超过单任务上限；请缩短范围或选择仅导出')
-            tracker = UsageTracker()
-            for service,needed,model in [('gemini',plan['gemini_chunks'],cfg['model']),('pushplus',plan['pushplus_estimate'],'')]:
-                remaining = CredentialPool(cfg,secrets,service,tracker).capacity()
-                if service == 'gemini':
-                    capacities = [CredentialPool({**cfg,'model':name},secrets,service,tracker).capacity() for name in candidates(model)]
-                    remaining = None if any(n is None for n in capacities) else sum(capacities)
-                if remaining is not None and needed > remaining:
-                    raise ValueError(f'{service} 至少需 {needed} 次，设置的今日剩余仅 {remaining} 次；请校准额度或仅导出')
+            if summarize:
+                if plan['gemini_chunks'] > int(cfg.get('max_api_calls',100)):
+                    raise ValueError(f'仅分段就需 {plan["gemini_chunks"]} 次 Gemini 调用，超过单任务上限；请缩短范围或选择仅导出')
+                tracker = UsageTracker()
+                for service,needed,model in [('gemini',plan['gemini_chunks'],cfg['model']),('pushplus',plan['pushplus_estimate'],'')]:
+                    remaining = CredentialPool(cfg,secrets,service,tracker).capacity()
+                    if service == 'gemini':
+                        capacities = [CredentialPool({**cfg,'model':name},secrets,service,tracker).capacity() for name in candidates(model)]
+                        remaining = None if any(n is None for n in capacities) else sum(capacities)
+                    if remaining is not None and needed > remaining:
+                        raise ValueError(f'{service} 至少需 {needed} 次，设置的今日剩余仅 {remaining} 次；请校准额度或仅导出')
             for room_index,room in enumerate(rooms):
                 check_cancel(cancel)
                 room_start,room_span = 57+40*room_index/len(rooms),40/len(rooms)

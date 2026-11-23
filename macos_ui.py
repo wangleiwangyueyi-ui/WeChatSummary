@@ -5,7 +5,7 @@ import tkinter as tk
 from tkinter import ttk
 import webbrowser
 import customtkinter as ctk
-from macos_theme import MACOS_THEME, family, font, frame, label, button, entry, search_entry, native_styles, PercentProgress, Tooltip, fitted_label
+from macos_theme import MACOS_THEME, family, font, frame, label, button, entry, search_entry, native_styles, PercentProgress, Tooltip, fitted_label, apply_window_icon
 from motion_ui import (PhaseDots, QuotaMeter, TabUnderline, bind_clear_undo,
                        copy_log, motion_enabled, show_commands, toggle_focus)
 from task_manager_ui import show_tasks
@@ -41,6 +41,7 @@ def build_shell(app):
     t=MACOS_THEME
     root=app.root
     ctk.set_appearance_mode('light')
+    apply_window_icon(root)
     # Finish CTk's Windows titlebar setup while the window is still withdrawn.
     # Otherwise its first mainloop can hide a window deiconified before that setup.
     if isinstance(root,ctk.CTk): root.update()
@@ -288,9 +289,16 @@ def build_history(app):
         cell.grid(row=0,column=col,sticky='ew',padx=(0,8 if col<2 else 0))
         cell.grid_columnconfigure(0,weight=1)
         label(cell,title,size='small_size',muted=True).grid(row=0,column=0,sticky='w',pady=(0,3))
-        widget=entry(cell,var,width=120,placeholder_text=placeholder)
-        widget.grid(row=1,column=0,sticky='ew')
-        Tooltip(widget,'时间格式：YYYY-MM-DD HH:MM；结束时间包含该分钟。' if col<2 else '按原发言人字段匹配；留空提取全群。')
+        from history_selectors import calendar_dialog, participant_dialog
+        if col < 2:
+            widget=button(cell, '', lambda v=var,t=title:calendar_dialog(app.root,v,t), width=120)
+            widget.configure(textvariable=var)
+            widget.grid(row=1,column=0,sticky='ew')
+        else:
+            widget=entry(cell,var,width=120,placeholder_text=placeholder)
+            widget.grid(row=1,column=0,sticky='ew')
+            button(cell,'选择',lambda:participant_dialog(app),width=56).grid(row=1,column=1,padx=(4,0))
+        Tooltip(widget,'点击选择年月日和时分；结束时间包含该分钟。' if col<2 else '可搜索历史发言人，选择后按微信标识精确筛选；留空提取全群。')
     row=frame(card)
     row.grid(row=3,column=0,sticky='ew',padx=12,pady=(0,10))
     quick=frame(row)
@@ -384,7 +392,8 @@ def build_config(app):
     row=frame(tools)
     row.pack(fill='x',padx=12,pady=(0,10))
     for name,text,command,width in [
-        ('open_wizard','首次离线初始化',app.open_wizard,108),
+        ('open_wizard','离线数据库凭据',app.open_wizard,108),
+        ('check_export_sources','重新校验分库',app.check_export_sources,104),
         ('open_image_wizard','初始化图片密钥',app.open_image_wizard,108),
         ('test_push','测试手机推送',app.test_push,88),
         ('help','使用说明',lambda:show_help(app),64),

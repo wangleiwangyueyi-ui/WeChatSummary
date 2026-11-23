@@ -20,15 +20,15 @@ if (ROOT/'release_tools'/'extra').is_dir():
 from version import VERSION, RUNTIME_VERSION
 
 PROGRAM = '''app_info.py app_paths.py credential_ui.py credentials.py db_reader.py group_search.py
-help_content.py help_ui.py ime_font.py jobs.py macos_dialogs.py macos_theme.py macos_ui.py message_parser.py
+help_content.py help_ui.py history_selectors.py ime_font.py jobs.py macos_dialogs.py macos_theme.py macos_ui.py message_parser.py
 model_catalog.py motion_ui.py quota_service.py report_format.py scheduler.py secure_store.py task_control.py task_manager_ui.py
 ui_extras.py usage_tracker.py voice_reader.py wechat_gui.pyw update_service.py update_ui.py version.py
-initialize_offline.pyw initialize_images.pyw clear_wechat_logs.ps1'''.split()
+initialize_images.pyw clear_wechat_logs.ps1'''.split()
 DOCUMENTS = ['LICENSE','THIRD_PARTY.txt','requirements.txt','README.md','软件使用说明.html','软件使用说明.txt','总结模板预览.html']
 ASSETS = ['assets/wechat-summary.ico']
-BOOTSTRAP = ['image_key_once.py','bootstrap/__init__.py','bootstrap/common.py','bootstrap/key.py','bootstrap/LICENSE','bootstrap/NOTICE.txt']
+BOOTSTRAP = []
 DEVELOPMENT = ['release_tools/prepare_release.py','release_tools/installer.iss','release_tools/build_release.ps1',
-               'release_tools/make_manifest.py','release_tools/publish_release.py','test_distribution.py',
+               'release_tools/make_manifest.py','release_tools/publish_release.py','test_distribution.py','test_history_selectors.py',
                'release_tools/MODEL_LICENSE','release_tools/fetch_model.py',
                '.gitignore','.github/workflows/validate.yml','UPGRADING.md','CHANGELOG.md','assets/wechat-summary.png']
 CORE = ['pycryptodome','lz4','zstandard','pillow','google-genai','requests','pystray','tzdata','customtkinter']

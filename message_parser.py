@@ -76,6 +76,8 @@ def node_text(node, *paths):
     return ''
 
 def match_name(keyword, sender, names=()):
+    if keyword.startswith('id='):
+        return bool(names) and keyword[3:] == names[0]
     return not keyword or any(keyword.casefold() in str(v).casefold() for v in (sender,*names) if v)
 
 def forwarded(root, keyword='', depth=0, budget=None):

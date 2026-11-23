@@ -125,7 +125,7 @@ def snapshot(source, keys, cancel=None):
                 else:
                     key = keys.get(salt.hex())
                     if not key:
-                        raise KeyError(f'{source.name} 缺少已验证密钥，请完成一次性离线初始化')
+                        raise KeyError(f'{source.name} 缺少已验证密钥，无法完整读取聊天记录')
                     decrypt_snapshot(raw, wal, output, key, cancel)
                 check_cancel(cancel)
                 conn = sqlite3.connect(output)
@@ -168,6 +168,41 @@ def storage(cfg):
         raise ValueError('请选择微信 4.x 账号目录（其下应有 db_storage）。旧版目录需另行适配。')
     return result
 
+def message_sources(root):
+    files = sorted((root/'message').glob('message_[0-9]*.db'))
+    if not files:
+        raise FileNotFoundError('没有找到 message_N.db 历史分库')
+    return files
+
+def verify_database_keys(cfg, current, backup=None, cancel=None):
+    """Check credentials mapped to each required file before authorizing local export."""
+    root = storage(cfg)
+    backup = backup or {}
+    keys = dict(current)
+    missing = []
+    for source in [root/'contact'/'contact.db', *message_sources(root)]:
+        check_cancel(cancel)
+        with source.open('rb') as database:
+            page = database.read(PAGE)
+        salt = page[:16]
+        if salt == HEADER:
+            continue
+        identity = salt.hex()
+        for value in (current.get(identity), backup.get(identity)):
+            if not isinstance(value, str) or len(value) != 64:
+                continue
+            try:
+                Cipher(bytes.fromhex(value), salt).page(page, 1)
+            except ValueError:
+                continue
+            keys[identity] = value
+            break
+        else:
+            missing.append(source.name)
+    if missing:
+        raise ValueError('这些数据库仍缺少有效凭据，无法完整导出：' + '、'.join(missing))
+    return keys
+
 def contacts(cfg, secrets, cancel=None):
     result = {}
     with snapshot(storage(cfg)/'contact'/'contact.db', secrets.get('db_keys', {}), cancel) as conn:
@@ -201,9 +236,7 @@ def messages(cfg, secrets, rooms, start, end, progress=lambda _: None, cancel=No
     check_cancel(cancel)
     if start > end:
         raise ValueError('起始时间不能晚于结束时间')
-    files = sorted((storage(cfg)/'message').glob('message_[0-9]*.db'))
-    if not files:
-        raise FileNotFoundError('没有找到 message_N.db 历史分库')
+    files = message_sources(storage(cfg))
     for i, source in enumerate(files):
         progress({'percent':3+50*i/len(files),'stage':'本地预检 / 读取数据库',
                   'text':f'读取历史分库 {i+1}/{len(files)}：{source.name}'})

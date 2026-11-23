@@ -61,6 +61,17 @@ def save_config(cfg):
 def load_secrets():
     return json.loads(protect(VAULT.read_bytes(), True)) if VAULT.exists() else {}
 
+def load_database_key_backup(path):
+    """Read only the database credentials from a same-user app backup."""
+    try:
+        backup = json.loads(protect(Path(path).read_bytes(), True))
+    except (OSError, ValueError) as exc:
+        raise ValueError('无法读取该凭据备份。请使用此 Windows 用户保存的 WeChatSummary secrets.dpapi。') from exc
+    keys = backup.get('db_keys') if isinstance(backup, dict) else None
+    if not isinstance(keys, dict) or not keys:
+        raise ValueError('此备份没有数据库凭据。')
+    return keys
+
 def save_secrets(values):
     atomic_bytes(VAULT, protect(json.dumps(values).encode('utf-8')))
 

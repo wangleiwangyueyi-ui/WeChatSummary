@@ -11,6 +11,7 @@ from secure_store import safe_error
 
 TASK_NAMES = {
     'job': '手动导出 / 汇总',
+    'export': '仅导出记录',
     'scheduled': '定时汇总',
     'groups': '刷新群列表',
     'health': '检查运行状态',

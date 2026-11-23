@@ -4,7 +4,7 @@ from tkinter import ttk,font as tkfont
 import webbrowser
 import sys
 import customtkinter as ctk
-from macos_theme import MACOS_THEME as T, font, family, frame, label, button, entry, Tooltip
+from macos_theme import MACOS_THEME as T, font, family, frame, label, button, entry, Tooltip, apply_window_icon
 
 
 def work_area(parent):
@@ -35,6 +35,7 @@ def work_area(parent):
 
 def dialog(parent,title,width=900,height=680,minimum=(760,540)):
     window=ctk.CTkToplevel(parent,fg_color=T['bg_window'])
+    apply_window_icon(window)
     window.withdraw()
     window.title(title)
     window.transient(parent)
