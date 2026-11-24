@@ -220,17 +220,32 @@ def build_daily(app):
     content.grid(row=1,column=0,sticky='nsew',padx=8)
     content.grid_columnconfigure(0,weight=1)
     content.grid_rowconfigure(0,weight=1)
-    canvas=app.group_canvas=tk.Canvas(content,bg=t['bg_card'],highlightthickness=0,yscrollincrement=24)
+    scale=content._get_widget_scaling()
+    style=ttk.Style(app.root)
+    style.configure('Groups.Treeview',font=(family(app.root),-round(t['body_size']*scale)),
+        rowheight=round(30*scale),borderwidth=0,background=t['bg_card'],fieldbackground=t['bg_card'])
+    style.layout('Groups.Treeview',[('Treeview.treearea',{'sticky':'nswe'})])
+    canvas=app.group_canvas=ttk.Treeview(content,show='tree',selectmode='none',style='Groups.Treeview')
+    canvas.column('#0',width=400,minwidth=100,stretch=True)
     canvas.grid(row=0,column=0,sticky='nsew')
     scrollbar=app.group_scrollbar=ctk.CTkScrollbar(content,orientation='vertical',command=canvas.yview,
         fg_color=t['bg_card'],button_color=t['border_input'],button_hover_color=t['hint'],width=12)
     scrollbar.grid(row=0,column=1,sticky='ns')
-    app.group_frame=ttk.Frame(canvas,style='Card.TFrame')
-    app.group_rows={}
-    app.group_placeholder=None
-    app.group_frame.bind('<Configure>',lambda _:canvas.configure(scrollregion=canvas.bbox('all')))
-    window=canvas.create_window((0,0),window=app.group_frame,anchor='nw')
-    canvas.bind('<Configure>',lambda event:canvas.itemconfigure(window,width=event.width))
+    def toggle_group(event=None):
+        rid=canvas.identify_row(event.y) if event is not None and event.type==tk.EventType.ButtonPress else canvas.focus()
+        if rid in app.selected and rid in app.groups:
+            canvas.focus_set()
+            canvas.focus(rid)
+            value=app.selected[rid]
+            value.set(not value.get())
+            canvas.item(rid,image=app.root._group_check_icons[int(value.get())])
+            refresh_selection(app)
+        return 'break'
+    canvas.bind('<Button-1>',toggle_group)
+    canvas.bind('<space>',toggle_group)
+    canvas.bind('<Double-1>',lambda _: 'break')
+    # Stop before the native class/root bindings: each wheel event scrolls once.
+    canvas.bind('<MouseWheel>',app.scroll_groups)
     canvas.configure(yscrollcommand=scrollbar.set)
     app.scroll_targets.append((canvas,scrollbar))
     app.root.bind('<MouseWheel>',app.scroll_groups,add='+')
@@ -412,21 +427,9 @@ def queue_group_search(app):
     app.group_search_task=app.root.after(140,app.draw_groups)
 
 
-def group_row(app,text,var):
-    row=ttk.Checkbutton(app.group_frame,text=text,variable=var,style='Group.TCheckbutton',
-        command=lambda:refresh_selection(app))
-    return row
-
-
 def refresh_selection(app):
     count=sum(var.get() for rid,var in app.selected.items() if rid in app.groups)
     app.selection_count.configure(text=f'已勾选 {count} 个群')
-
-def empty_groups(app,text):
-    placeholder=ttk.Label(app.group_frame,text=text,padding=12,style='Card.TLabel')
-    placeholder.pack(anchor='w')
-    return placeholder
-
 
 def search_box(app,parent,variable,name,callback):
     box=frame(parent,fg_color=MACOS_THEME['bg_input'],corner_radius=8,border_width=1,border_color=MACOS_THEME['border_input'])

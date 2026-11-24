@@ -241,12 +241,17 @@ class App:
     def start_tray(self):
         import pystray
         from PIL import Image, ImageDraw
-        picture = Image.new('RGBA',(64,64),(0,0,0,0))
-        draw = ImageDraw.Draw(picture)
-        draw.rounded_rectangle((4,5,60,53),radius=14,fill='#23885b')
-        draw.polygon([(15,48),(14,61),(30,50)],fill='#23885b')
-        for y in (19,29,39):
-            draw.rounded_rectangle((17,y,47,y+4),radius=2,fill='white')
+        try:
+            with Image.open(APP_DIR/'assets'/'wechat-summary.ico') as source:
+                picture = source.convert('RGBA')
+        except OSError:
+            # Keep the tray usable if a portable installation loses its icon file.
+            picture = Image.new('RGBA',(64,64),(0,0,0,0))
+            draw = ImageDraw.Draw(picture)
+            draw.rounded_rectangle((4,5,60,53),radius=14,fill='#23885b')
+            draw.polygon([(15,48),(14,61),(30,50)],fill='#23885b')
+            for y in (19,29,39):
+                draw.rounded_rectangle((17,y,47,y+4),radius=2,fill='white')
         def event(name):
             return lambda icon,item:self.events.put((name,None))
         menu = pystray.Menu(pystray.MenuItem('打开设置',event('ui_show'),default=True),
@@ -346,40 +351,27 @@ class App:
             self.root.after_cancel(self.group_search_task)
             self.group_search_task = None
         matches = matching_groups(self.groups,self.group_aliases,self.search.get())
+        listing = self.group_canvas
         visible_ids = {rid for rid, _ in matches}
-        for rid in self.group_rows.keys() - visible_ids:
-            self.group_rows.pop(rid).destroy()
-        if matches and self.group_placeholder is not None:
-            self.group_placeholder.destroy()
-            self.group_placeholder = None
-        rows = []
-        for rid, name in matches:
+        removed = set(listing.get_children()) - visible_ids
+        if removed:
+            listing.delete(*removed)
+        for index, (rid, name) in enumerate(matches):
             text = f'{self.group_label(rid,name)}  ({rid})'
-            row = self.group_rows.get(rid)
-            if row is None:
-                row = self.group_rows[rid] = macos_ui.group_row(self,text,self.selected[rid])
-                row.pack(fill='x',padx=4,pady=4)
-            elif row.cget('text') != text:
-                row.configure(text=text)
-            rows.append(row)
-        if rows != self.group_frame.pack_slaves():
-            for index in range(len(rows)-2, -1, -1):
-                rows[index].pack_configure(before=rows[index+1])
+            image = self.root._group_check_icons[int(self.selected[rid].get())]
+            if listing.exists(rid):
+                listing.item(rid,text=text,image=image)
+                listing.move(rid,'',index)
+            else:
+                listing.insert('',index,iid=rid,text=text,image=image)
         self.group_count.set(f'显示 {len(matches)} / {len(self.groups)} 个群；搜索不会取消已勾选的群')
         if not matches:
             text = '没有匹配的群，请换个关键词或刷新群列表。' if self.groups else '尚未读取群聊，请点击“刷新群列表”。'
-            if self.group_placeholder is None:
-                self.group_placeholder = macos_ui.empty_groups(self,text)
-            else:
-                self.group_placeholder.configure(text=text)
-        # Recompute after Tk has laid out the shorter list, then reset the old scroll position.
-        if self.group_layout_task is not None:
-            self.root.after_cancel(self.group_layout_task)
-        self.group_layout_task = self.root.after_idle(self.reset_group_scroll)
+            listing.insert('','end',iid='__empty_groups__',text=text)
+        self.reset_group_scroll()
 
     def reset_group_scroll(self):
         self.group_layout_task = None
-        self.group_canvas.configure(scrollregion=self.group_canvas.bbox('all'))
         self.group_canvas.yview_moveto(0)
 
     def scroll_groups(self, event):

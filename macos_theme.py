@@ -7,6 +7,7 @@ import customtkinter as ctk
 MACOS_THEME = {
     'bg_window':'#F0F4F8','bg_card':'#FFFFFF','border_card':'#DCE5EF',
     'bg_input':'#F1F5FA','border_input':'#CCD9E6','primary':'#007AFF',
+    'checkbox_border':'#52647C',
     'primary_hover':'#0062CC','secondary_hover':'#E3EDF8','text':'#172A40',
     'muted':'#52647C','hint':'#65758B','success_bg':'#E8F8EE','success':'#248A3D',
     'footer':'#E7EEF6','log':'#F7FAFD','white':'#FFFFFF',
@@ -103,7 +104,7 @@ def native_styles(root,scale=1):
     style.configure('Card.TFrame',background=t['bg_card'])
     style.configure('Group.TCheckbutton',background=t['bg_card'],foreground=t['text'],padding=(8,4),font=face)
     style.configure('Group.TCheckbutton',indicatorsize=round(15*scale),
-                    upperbordercolor=t['border_input'],lowerbordercolor=t['border_input'],
+                    upperbordercolor=t['checkbox_border'],lowerbordercolor=t['checkbox_border'],
                     indicatorforeground=t['white'],indicatormargin=round(5*scale))
     style.map('Group.TCheckbutton',background=[('active',t['bg_window'])],indicatorbackground=[('selected',t['primary']),('!selected',t['white'])])
     # The clam theme draws a cross. Supply a crisp tick while keeping native rows fast.
@@ -114,7 +115,8 @@ def native_styles(root,scale=1):
         bitmap=Image.new('RGBA',(size*3,size*3),(0,0,0,0))
         pen=ImageDraw.Draw(bitmap)
         pen.rounded_rectangle((1,1,size*3-2,size*3-2),radius=round(size*.65),
-            fill=t['primary'] if selected else t['white'],outline=t['primary'] if selected else t['border_input'],width=3)
+            fill=t['primary'] if selected else t['white'],
+            outline=t['primary'] if selected else t['checkbox_border'],width=max(6,round(6*scale)))
         if selected:pen.line([(size*.65,size*1.5),(size*1.25,size*2.1),(size*2.35,size*.8)],fill=t['white'],width=max(4,round(size*.24)),joint='curve')
         icons.append(ImageTk.PhotoImage(bitmap.resize((size,size),Image.Resampling.LANCZOS),master=root))
     if not hasattr(root,'_group_check_icons'):

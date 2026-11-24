@@ -29,7 +29,7 @@ ASSETS = ['assets/wechat-summary.ico']
 BOOTSTRAP = ['bootstrap/__init__.py', 'bootstrap/key.py', 'bootstrap/common.py',
              'bootstrap/LICENSE', 'bootstrap/NOTICE.txt']
 DEVELOPMENT = ['release_tools/prepare_release.py','release_tools/installer.iss','release_tools/build_release.ps1',
-               'release_tools/make_manifest.py','release_tools/publish_release.py','test_distribution.py','test_history_selectors.py','test_database_setup.py',
+               'release_tools/make_manifest.py','release_tools/publish_release.py','test_distribution.py','test_history_selectors.py','test_database_setup.py','test_group_scrolling.py',
                'release_tools/MODEL_LICENSE','release_tools/fetch_model.py',
                '.gitignore','.github/workflows/validate.yml','UPGRADING.md','CHANGELOG.md','assets/wechat-summary.png']
 CORE = ['pycryptodome','lz4','zstandard','pillow','google-genai','requests','pystray','tzdata','customtkinter']
