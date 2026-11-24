@@ -14,12 +14,12 @@ from macos_theme import font, MACOS_THEME as T
 from motion_ui import motion_enabled
 
 
-def show_updates(app, components=False):
+def show_updates(app, components=False, release=None):
     existing = getattr(app, '_updates_window', None)
     if existing is not None and existing.winfo_exists():
         existing.lift()
         return existing
-    window = dialog(app.root, '图片 / 语音组件' if components else '检查软件更新', 660, 500, (580, 430))
+    window = dialog(app.root, '图片 / 语音组件' if components else '发现软件新版本' if release else '检查软件更新', 660, 500, (580, 430))
     app._updates_window = window
     window.grid_rowconfigure(2, weight=1)
     window.grid_columnconfigure(0, weight=1)
@@ -96,6 +96,9 @@ def show_updates(app, components=False):
         while not events.empty():
             kind,value=events.get_nowait()
             if kind=='release':
+                checker = getattr(app, 'auto_update_checker', None)
+                if checker is not None and value['newer'] and not components:
+                    checker.notified.add(value['version'])
                 state['working']=False
                 bar.stop()
                 bar.configure(mode='determinate')
@@ -141,10 +144,13 @@ def show_updates(app, components=False):
         value=read_release()
         choose_asset(value,INSTALLED,components)
         return value
-    if motion_enabled(window):
+    if release is None and motion_enabled(window):
         bar.configure(mode='indeterminate')
         bar.start()
-    run(check,'release')
+    if release is None:
+        run(check,'release')
+    else:
+        events.put(('release', release))
     window.after(100,poll)
     reveal(window)
     return window

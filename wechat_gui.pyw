@@ -69,6 +69,8 @@ class App:
             self.root.after(300,self.refresh_groups)
         else:
             tabs.select(self.config)
+        from auto_update import start_auto_updates
+        start_auto_updates(self)
 
     def build_daily(self):
         macos_ui.build_daily(self)
