@@ -177,8 +177,18 @@ class Tooltip:
         self.window.attributes('-topmost',True)
         self.window.geometry(f'+{self.widget.winfo_rootx()}+{self.widget.winfo_rooty()+self.widget.winfo_height()+4}')
         text=self.text() if callable(self.text) else self.text
+        scale = self.widget.winfo_toplevel()._get_window_scaling()
         tk.Label(self.window,text=text,background=MACOS_THEME['bg_card'],foreground=MACOS_THEME['text'],
-            font=(family(self.widget),10),padx=10,pady=7,justify='left',wraplength=600,relief='solid',borderwidth=1).pack()
+            font=(family(self.widget),-round(14*scale)),padx=round(12*scale),pady=round(8*scale),
+            justify='left',wraplength=round(420*scale),relief='solid',borderwidth=1).pack()
+        self.window.update_idletasks()
+        from macos_dialogs import work_area
+        left, top, right, bottom = work_area(self.widget.winfo_toplevel())
+        x = max(left, min(self.widget.winfo_rootx(), right-self.window.winfo_width()))
+        y = self.widget.winfo_rooty()+self.widget.winfo_height()+4
+        if y+self.window.winfo_height() > bottom:
+            y = max(top, self.widget.winfo_rooty()-self.window.winfo_height()-4)
+        self.window.geometry(f'{x:+d}{y:+d}')
 
     def hide(self,_=None):
         if self.job is not None:

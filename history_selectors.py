@@ -8,7 +8,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 
 from macos_dialogs import dialog, reveal
-from macos_theme import frame, label, button, entry, family
+from macos_theme import frame, label, button, entry, search_entry, family
 from db_reader import contacts, message_sources, snapshot, storage, display
 from secure_store import safe_error
 from task_control import Cancelled, check_cancel
@@ -20,7 +20,7 @@ def calendar_dialog(parent, variable, title):
         initial = datetime.strptime(variable.get(), '%Y-%m-%d %H:%M')
     except ValueError:
         initial = datetime.now()
-    window = dialog(parent, title, 470, 470, (430, 430))
+    window = dialog(parent, title, 510, 510, (490, 490))
     header = frame(window)
     header.pack(fill='x', padx=16, pady=12)
     year = tk.StringVar(value=str(initial.year))
@@ -29,8 +29,19 @@ def calendar_dialog(parent, variable, title):
     face = (family(window), -round(16 * window._get_window_scaling()))
     window.option_add('*TCombobox*Listbox.font', face)
     def spin(container, variable, start, end, width=5):
-        widget = ttk.Spinbox(container, from_=start, to=end, textvariable=variable, width=width, font=face, wrap=False)
-        widget.pack(side='left', padx=4)
+        group = frame(container)
+        group.pack(side='left', padx=4)
+        def adjust(amount):
+            try:
+                value = int(variable.get())
+            except ValueError:
+                return
+            variable.set(str(max(start, min(end, value + amount))))
+            draw()
+        button(group, '−', lambda: adjust(-1), width=32, height=34).pack(side='left')
+        widget = entry(group, variable, width=width*13, height=34)
+        widget.pack(side='left', padx=3)
+        button(group, '＋', lambda: adjust(1), width=32, height=34).pack(side='left')
         return widget
     year_field = spin(header, year, 1, 9999)
     label(header, '年').pack(side='left')
@@ -72,10 +83,11 @@ def calendar_dialog(parent, variable, title):
                 draw()
         except ValueError:
             pass
-    button(header, '‹', lambda: shift(-1), width=36).pack(side='left', padx=6)
-    button(header, '›', lambda: shift(1), width=36).pack(side='left')
+    navigation = frame(window)
+    navigation.pack(fill='x', padx=20, pady=(0, 6), before=grid)
+    button(navigation, '上一月', lambda: shift(-1), width=90).pack(side='left')
+    button(navigation, '下一月', lambda: shift(1), width=90).pack(side='right')
     for field in (year_field, month_field):
-        field.configure(command=draw)
         field.bind('<Return>', draw)
         field.bind('<FocusOut>', draw)
     clock = frame(window)
@@ -86,6 +98,7 @@ def calendar_dialog(parent, variable, title):
         ttk.Combobox(clock, textvariable=value, values=[f'{n:02d}' for n in range(count)], state='readonly', width=4, font=face).pack(side='left', padx=4)
         label(clock, text).pack(side='left')
     def apply():
+        draw()
         try:
             value = datetime(int(year.get()), int(month.get()), day.get(), int(hour.get()), int(minute.get()))
         except ValueError:
@@ -138,7 +151,7 @@ def participant_dialog(app):
     window = app.participant_window = dialog(app.root, '选择群内发言人', 760, 530, (600, 430))
     window.grid_rowconfigure(2, weight=1)
     query = tk.StringVar()
-    search = entry(window, query, placeholder_text='搜索昵称、备注或微信标识')
+    search = search_entry(window, query, placeholder_text='搜索昵称、备注或微信标识')
     search.grid(row=0, column=0, sticky='ew', padx=16, pady=12)
     status = label(window, '正在读取本地聊天记录中的发言人…', size='small_size', muted=True)
     status.grid(row=1, column=0, sticky='w', padx=16, pady=4)
@@ -171,7 +184,11 @@ def participant_dialog(app):
                 messagebox.showinfo('群聊已切换', '请重新打开当前群聊的发言人列表。', parent=window)
                 close()
                 return
-            app.person.set('id=' + chosen[0])
+            name, nickname, uid = listing.item(chosen[0], 'values')
+            names = ' / '.join(dict.fromkeys(n for n in (name, nickname) if n and n != uid))
+            caption = f'{names} | {uid}' if names else uid
+            app.selected_participant = (caption, uid)
+            app.person.set(caption)
             close()
     button(controls, '全部发言人', use_all, width=110).pack(side='left')
     button(controls, '选择此人', use_selected, primary=True, width=100).pack(side='right')
@@ -212,3 +229,10 @@ def participant_dialog(app):
     window.after(120, poll)
     reveal(window)
     return window
+
+
+def participant_filter(app):
+    """Keep the readable selection separate from the exact query identity."""
+    value = app.person.get().strip()
+    selected = getattr(app, 'selected_participant', None)
+    return 'id=' + selected[1] if selected and value == selected[0] else value

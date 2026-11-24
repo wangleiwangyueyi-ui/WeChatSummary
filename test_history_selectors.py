@@ -55,7 +55,12 @@ class CalendarTests(unittest.TestCase):
         listing.selection_set('alice')
         controls = [w for frame in window.winfo_children() for w in frame.winfo_children()]
         next(w for w in controls if isinstance(w, ctk.CTkButton) and w.cget('text') == '选择此人').invoke()
-        self.assertEqual(person.get(), 'id=alice')
+        self.assertEqual(person.get(), 'Alice / A | alice')
+        self.assertEqual(selectors.participant_filter(app), 'id=alice')
+        person.set('Bob')
+        self.assertEqual(selectors.participant_filter(app), 'Bob')
+        person.set('')
+        self.assertEqual(selectors.participant_filter(app), '')
 
     def test_year_change_clamps_leap_day_and_preserves_time(self):
         root = ctk.CTk()
@@ -68,9 +73,9 @@ class CalendarTests(unittest.TestCase):
             for child in widget.winfo_children():
                 yield child
                 yield from children(child)
-        fields = [w for w in children(window) if isinstance(w, ttk.Spinbox)]
+        fields = [w for w in children(window) if isinstance(w, ctk.CTkEntry)]
         window.setvar(str(fields[0].cget('textvariable')), '2023')
-        fields[0].event_generate('<FocusOut>')
+        fields[0]._entry.event_generate('<FocusOut>')
         confirm = next(w for w in children(window) if isinstance(w, ctk.CTkButton) and w.cget('text') == '确定')
         confirm.invoke()
         self.assertEqual(value.get(), '2023-02-28 23:59')

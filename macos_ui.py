@@ -291,8 +291,7 @@ def build_history(app):
         label(cell,title,size='small_size',muted=True).grid(row=0,column=0,sticky='w',pady=(0,3))
         from history_selectors import calendar_dialog, participant_dialog
         if col < 2:
-            widget=button(cell, '', lambda v=var,t=title:calendar_dialog(app.root,v,t), width=120)
-            widget.configure(textvariable=var)
+            widget=button(cell, var.get(), lambda v=var,t=title:calendar_dialog(app.root,v,t), width=220, textvariable=var)
             widget.grid(row=1,column=0,sticky='ew')
         else:
             widget=entry(cell,var,width=120,placeholder_text=placeholder)

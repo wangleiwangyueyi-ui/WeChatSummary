@@ -436,7 +436,8 @@ class App:
                 raise ValueError('请选择搜索结果中的目标群聊')
             start = datetime.strptime(self.start.get().strip(),'%Y-%m-%d %H:%M')
             end = datetime.strptime(self.end.get().strip(),'%Y-%m-%d %H:%M')+timedelta(seconds=59)
-            self.run_extract([room],start,end,self.person.get().strip(),summarize)
+            from history_selectors import participant_filter
+            self.run_extract([room],start,end,participant_filter(self),summarize)
         except Exception as exc:
             messagebox.showerror('输入有误',str(exc))
 
