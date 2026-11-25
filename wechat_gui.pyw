@@ -219,10 +219,7 @@ class App:
                             parent=self.root)
 
     def open_image_wizard(self):
-        if not (APP_DIR/'image_key_once.py').is_file():
-            messagebox.showinfo('图片初始化已完成','本机的一次性图片提取组件已清理；当前密钥可继续使用。重新初始化请联系作者。')
-            return
-        subprocess.Popen([sys.executable,str(APP_DIR/'initialize_images.pyw')],cwd=APP_DIR)
+        self.open_wizard()
 
     def show(self):
         self.root.deiconify()
@@ -264,6 +261,10 @@ class App:
         self.tray.run_detached()
 
     def launch(self, task, kind='job'):
+        setup = getattr(self, 'database_setup_process', None)
+        if setup is not None and setup.poll() is None:
+            self.status.set('密钥初始化向导尚未关闭，请完成初始化后再运行任务。')
+            return False
         if self.busy:
             self.status.set('已有任务运行，请等待或取消当前任务')
             return False

@@ -36,7 +36,7 @@ class ImageWizard:
     def module(self):
         path = APP_DIR/'image_key_once.py'
         if not path.is_file():
-            raise RuntimeError('一次性提取组件已移除。图片密钥已保存时无需重复初始化。')
+            raise RuntimeError('图片提取组件缺失或已清理。请安装包含图片初始化的更新包后重试；缺少组件不代表密钥已保存。')
         spec = importlib.util.spec_from_file_location('image_key_once',path)
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)

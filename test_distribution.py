@@ -13,6 +13,7 @@ class ReleaseTests(unittest.TestCase):
     def test_setup_and_update_both_ship_database_initialization(self):
         from release_tools import prepare_release as builder
         required = ('initialize_offline.pyw', 'database_key_setup.py',
+                    'initialize_images.pyw', 'image_key_once.py',
                     'bootstrap/__init__.py', 'bootstrap/key.py', 'bootstrap/common.py')
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

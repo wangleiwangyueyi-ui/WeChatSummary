@@ -406,9 +406,8 @@ def build_config(app):
     row=frame(tools)
     row.pack(fill='x',padx=12,pady=(0,10))
     for name,text,command,width in [
-        ('open_wizard','提取数据库密钥',app.open_wizard,108),
+        ('open_wizard','数据库 / 图片密钥',app.open_wizard,145),
         ('check_export_sources','重新校验分库',app.check_export_sources,104),
-        ('open_image_wizard','初始化图片密钥',app.open_image_wizard,108),
         ('test_push','测试手机推送',app.test_push,88),
         ('help','使用说明',lambda:show_help(app),64),
         ('author','联系作者',lambda:show_author(app),64),

@@ -35,6 +35,10 @@ class AutoUpdateChecker:
         app = self.app
         if app.closing:
             return
+        setup = getattr(app, 'database_setup_process', None)
+        if setup is not None and setup.poll() is None:
+            app.root.after(1000, self.tick)
+            return
         now = time.monotonic()
         try:
             ok, value = self.results.get_nowait()

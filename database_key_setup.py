@@ -8,12 +8,13 @@ from app_paths import APP_DIR
 from secure_store import load_secrets, safe_error
 
 REQUIRED_FILES = ('initialize_offline.pyw', 'bootstrap/__init__.py',
-                  'bootstrap/key.py', 'bootstrap/common.py')
+                  'bootstrap/key.py', 'bootstrap/common.py',
+                  'initialize_images.pyw', 'image_key_once.py', 'clear_wechat_logs.ps1')
 
 
 def open_setup(app):
     if app.busy:
-        messagebox.showinfo('任务运行中', '请先等待当前任务结束，再初始化数据库密钥。', parent=app.root)
+        messagebox.showinfo('任务运行中', '请先等待当前任务结束，再初始化数据库或图片密钥。', parent=app.root)
         return
     previous = getattr(app, 'database_setup_process', None)
     if previous is not None and previous.poll() is None:
@@ -26,6 +27,9 @@ def open_setup(app):
                              parent=app.root)
         return
     if not app.save_base():
+        return
+    if app.cfg.get('enabled'):
+        messagebox.showinfo('请先暂停自动运行', '请先暂停自动运行，再打开密钥初始化向导。', parent=app.root)
         return
     if not app.cfg.get('wechat_dir', '').strip():
         messagebox.showinfo('请选择微信目录', '请先选择包含 db_storage 的微信账号目录。', parent=app.root)
@@ -54,8 +58,12 @@ def open_setup(app):
         try:
             app.secrets = load_secrets()
             count = len(app.secrets.get('db_keys', {}))
-            app.key_status.set(f'本机已保存数据库密钥：{count} 个')
-            app.status.set(f'初始化向导已关闭，已保存 {count} 个数据库密钥。可刷新群列表验证。')
+            image_key = app.secrets.get('image_key_hex', '')
+            if 'image_key_hex' in app.fields:
+                app.fields['image_key_hex'].set(image_key)
+            image_status = '已保存' if image_key else '尚未初始化'
+            app.key_status.set(f'本机数据库密钥：{count} 个；图片密钥：{image_status}')
+            app.status.set(f'密钥向导已关闭：数据库 {count} 个，图片{image_status}。')
         except Exception as exc:
             messagebox.showerror('读取密钥状态失败', safe_error(exc), parent=app.root)
 

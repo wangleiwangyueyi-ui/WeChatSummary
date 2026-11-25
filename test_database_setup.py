@@ -27,7 +27,7 @@ class SetupTests(unittest.TestCase):
         self.path_patch.start()
         self.app = SimpleNamespace(busy=False, closing=False, root=Mock(),
                                    save_base=Mock(return_value=True), cfg={'wechat_dir': 'test-account'},
-                                   status=Mock(), key_status=Mock())
+                                   status=Mock(), key_status=Mock(), fields={'image_key_hex': Mock()})
 
     def tearDown(self):
         self.path_patch.stop()
@@ -46,7 +46,8 @@ class SetupTests(unittest.TestCase):
             process.poll.return_value = 0
             with patch.object(setup, 'load_secrets', return_value={'db_keys': {'test-salt': 'test-key'}}):
                 callback()
-            self.app.key_status.set.assert_called_with('本机已保存数据库密钥：1 个')
+            self.app.key_status.set.assert_called_with('本机数据库密钥：1 个；图片密钥：尚未初始化')
+            self.app.fields['image_key_hex'].set.assert_called_with('')
 
     def test_busy_duplicate_missing_and_failed_save_do_not_launch(self):
         with patch.object(setup, 'messagebox'), patch.object(setup.subprocess, 'Popen') as launch:
@@ -70,6 +71,27 @@ class SetupTests(unittest.TestCase):
             setup.open_setup(self.app)
             dialogs.showerror.assert_called_once()
 
+    def test_enabled_schedule_blocks_setup_and_active_setup_blocks_jobs(self):
+        self.app.cfg['enabled'] = True
+        with patch.object(setup, 'messagebox'), patch.object(setup.subprocess, 'Popen') as launch:
+            setup.open_setup(self.app)
+            launch.assert_not_called()
+        self.app.database_setup_process = Mock()
+        self.app.database_setup_process.poll.return_value = None
+        task = Mock()
+        self.assertFalse(gui.App.launch(self.app, task))
+        task.assert_not_called()
+
+    def test_return_refreshes_image_key_field_and_status(self):
+        process = Mock()
+        process.poll.return_value = 0
+        with patch.object(setup.subprocess, 'Popen', return_value=process), \
+             patch.object(setup, 'load_secrets', return_value={'db_keys': {}, 'image_key_hex':'ab'*16, 'image_xor_key':0}):
+            setup.open_setup(self.app)
+            self.app.root.after.call_args.args[1]()
+        self.app.fields['image_key_hex'].set.assert_called_once_with('ab'*16)
+        self.app.key_status.set.assert_called_with('本机数据库密钥：0 个；图片密钥：已保存')
+
     def test_configuration_button_invokes_setup_and_preserves_backup_import(self):
         cfg = copy.deepcopy(secure_store.DEFAULT)
         with patch.object(gui, 'load_config', return_value=cfg), \
@@ -82,7 +104,7 @@ class SetupTests(unittest.TestCase):
             try:
                 app = gui.App(root)
                 button = app.ui_controls['open_wizard']
-                self.assertEqual(button.cget('text'), '提取数据库密钥')
+                self.assertEqual(button.cget('text'), '数据库 / 图片密钥')
                 button.invoke()
                 entry.assert_called_once_with(app)
                 self.assertIn('import_export_keys', app.ui_controls)
@@ -95,8 +117,8 @@ class SetupTests(unittest.TestCase):
         from release_tools.prepare_release import PROGRAM, BOOTSTRAP
         self.assertIn('initialize_offline.pyw', PROGRAM)
         self.assertIn('database_key_setup.py', PROGRAM)
-        for name in setup.REQUIRED_FILES[1:]:
-            self.assertIn(name, BOOTSTRAP)
+        for name in setup.REQUIRED_FILES:
+            self.assertIn(name, PROGRAM + BOOTSTRAP)
 
 
 if __name__ == '__main__':
